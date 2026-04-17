@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BLANKQUIZ</title>
+  <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Nanum+Gothic:wght@400;700;800&display=swap" rel="stylesheet"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #a8c8e8;
+      background-image: radial-gradient(circle, #fff 2px, transparent 2px);
+      background-size: 22px 22px;
+      font-family: 'Nanum Gothic', sans-serif;
+      color: #3d2b1f;
+      min-height: 100vh;
+    }
+    input, textarea, select { font-family: 'Nanum Gothic', sans-serif; }
+    button { font-family: 'Nanum Gothic', sans-serif; cursor: pointer; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: #e07b6a; border-radius: 10px; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const {useState,useEffect,useRef,useCallback,createElement:h,Fragment} = React;
+
+const P = {
+bg:”#fffef5”,surface:”#fff8f0”,surfaceAlt:”#f0f9e8”,
+border:”#f0c8a0”,borderSoft:”#d4ecc0”,
+accent:”#e07b6a”,accentDim:”#f0a898”,
+header:”#c8e88a”,headerDark:”#a8d060”,
+nav:”#e07b6a”,text:”#3d2b1f”,muted:”#9a7c6e”,
+green:”#5cb85c”,red:”#e05050”,blue:”#5b9bd5”,yellow:”#f9e07a”
+};
+
+const IS = {
+width:“100%”,background:”#fffef5”,border:“2px solid #f0c8a0”,
+borderRadius:12,padding:“8px 14px”,color:”#3d2b1f”,
+fontSize:14,outline:“none”,marginBottom:4
+};
+
+// ── SM-2 ──────────────────────────────────────────────────────────────────────
+function getNextReview(card, quality) {
+let {interval=1,ease=2.5,reps=0} = card;
+if (quality===0) { interval=1; reps=0; }
+else {
+if (reps===0) interval=1;
+else if (reps===1) interval=6;
+else interval=Math.round(interval*ease);
+reps+=1;
+ease=Math.max(1.3, ease+(0.1-(2-quality)*(0.08+(2-quality)*0.02)));
+}
+const d=new Date(); d.setDate(d.getDate()+interval);
+return {interval,ease,reps,nextReview:d.toISOString(),lastReview:new Date().toISOString()};
+}
+
+// ── Storage ───────────────────────────────────────────────────────────────────
+let _store = {subjects:[],cards:[]};
+function loadData() {
+try { const r=localStorage.getItem(“blankquiz_v1”); if(r) return JSON.parse(r); } catch {}
+return _store;
+}
+function saveData(d) {
+_store=d;
+try { localStorage.setItem(“blankquiz_v1”,JSON.stringify(d)); } catch {}
+}
+const uid = () => Math.random().toString(36).slice(2)+Date.now().toString(36);
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function parseBlanks(text) {
+const parts=[],re=/[[([^]]+)]]/g; let last=0,m;
+while ((m=re.exec(text))!==null) {
+if (m.index>last) parts.push({type:“text”,value:text.slice(last,m.index)});
+parts.push({type:“blank”,value:m[1]});
+last=m.index+m[0].length;
+}
+if (last<text.length) parts.push({type:“text”,value:text.slice(last)});
+return parts;
+}
+const isDue = c => !c.nextReview || new Date(c.nextReview)<=new Date();
+
+function TextWithBreaks({value}) {
+const lines=value.split(”\n”);
+return h(Fragment,null,…lines.map((l,i)=>h(Fragment,{key:i},l,i<lines.length-1?h(“br”):null)));
+}
+
+// ── Shared UI ─────────────────────────────────────────────────────────────────
+function Btn({children,onClick,accent,small,style:s={}}) {
+const bg=accent?P.accent:”#fff”, col=accent?”#fff”:P.accent, brd=accent?P.accent:P.border;
+return h(“button”,{
+onClick,
+style:{background:bg,color:col,border:`2px solid ${brd}`,borderRadius:20,
+padding:small?“4px 14px”:“7px 20px”,fontSize:small?12:13,fontWeight:700,
+cursor:“pointer”,transition:“all .15s”,boxShadow:“0 2px 4px rgba(0,0,0,0.08)”,…s},
+onMouseEnter:e=>{e.currentTarget.style.transform=“translateY(-1px)”;e.currentTarget.style.boxShadow=“0 4px 8px rgba(0,0,0,0.12)”},
+onMouseLeave:e=>{e.currentTarget.style.transform=””;e.currentTarget.style.boxShadow=“0 2px 4px rgba(0,0,0,0.08)”}
+},children);
+}
+
+function NavBtn({children,active,onClick}) {
+return h(“button”,{
+onClick,
+style:{background:active?P.nav:“rgba(255,255,255,0.75)”,color:active?”#fff”:P.nav,
+border:`2px solid ${active?P.nav:"rgba(224,123,106,0.4)"}`,borderRadius:20,
+padding:“6px 18px”,fontSize:13,fontWeight:700,cursor:“pointer”,transition:“all .15s”,
+boxShadow:active?“0 3px 8px rgba(224,123,106,0.3)”:“none”}
+},children);
+}
+
+function Section({label,children}) {
+return h(“div”,{style:{marginBottom:28}},
+h(“div”,{style:{display:“flex”,alignItems:“center”,gap:8,marginBottom:14}},
+h(“div”,{style:{width:4,height:18,background:P.accent,borderRadius:4}}),
+h(“div”,{style:{fontSize:13,fontWeight:800,color:P.accent}},label)
+),
+children
+);
+}
+
+function Label({children}) {
+return h(“div”,{style:{fontSize:12,color:P.muted,marginBottom:5,fontWeight:700}},children);
+}
+
+function Empty({children,small}) {
+return h(“div”,{style:{color:P.muted,fontSize:small?12:14,textAlign:“center”,padding:small?“10px 0”:32}},children);
+}
+
+// ── Header ────────────────────────────────────────────────────────────────────
+function Header({view,setView,dueCount,setSelectedSubject,setSelectedChapter}) {
+return h(“div”,{style:{marginBottom:20}},
+h(“div”,{
+onClick:()=>setView(“home”),
+style:{background:P.header,borderRadius:20,padding:“20px 28px 16px”,marginBottom:12,
+textAlign:“center”,cursor:“pointer”,border:`3px solid ${P.headerDark}`,
+boxShadow:“0 4px 16px rgba(0,0,0,0.1)”}
+},
+h(“div”,{style:{fontFamily:”‘Gaegu’,cursive”,fontWeight:700,fontSize:34,color:P.accent,
+letterSpacing:1,textShadow:“2px 2px 0 rgba(255,255,255,0.6)”}},“BLANKQUIZ”),
+h(“div”,{style:{fontSize:12,color:P.muted,marginTop:4,fontWeight:700}},“빈칸 학습 · 망각곡선 복습 시스템”)
+),
+h(“div”,{style:{background:P.nav,borderRadius:14,padding:“10px 16px”,display:“flex”,gap:8,
+flexWrap:“wrap”,boxShadow:“0 3px 10px rgba(224,123,106,0.25)”}},
+h(NavBtn,{active:view===“home”,onClick:()=>setView(“home”)},“홈”),
+h(NavBtn,{active:view===“create”,onClick:()=>{setSelectedSubject(null);setSelectedChapter(null);setView(“create”)}},“카드 만들기”),
+h(NavBtn,{active:view===“cards”,onClick:()=>setView(“cards”)},“카드 목록”),
+h(NavBtn,{active:view===“review”,onClick:()=>setView(“review”)},
+“복습”,
+dueCount>0&&h(“span”,{style:{marginLeft:6,background:P.yellow,color:P.text,borderRadius:10,
+padding:“1px 8px”,fontSize:11,fontWeight:800}},dueCount)
+)
+)
+);
+}
+
+// ── SubjectCard ───────────────────────────────────────────────────────────────
+function SubjectCard({subject,cards,onAddChapter,onDeleteSubject,onDeleteChapter,onStudy,onCreateCard}) {
+const [newCh,setNewCh]=useState(””);
+const [open,setOpen]=useState(true);
+const cc=cid=>cards.filter(c=>c.subjectId===subject.id&&c.chapterId===cid);
+const dc=cid=>cc(cid).filter(isDue).length;
+return h(“div”,{style:{border:`2px solid ${P.borderSoft}`,borderRadius:16,marginBottom:14,
+overflow:“hidden”,boxShadow:“0 2px 8px rgba(0,0,0,0.06)”}},
+h(“div”,{onClick:()=>setOpen(o=>!o),style:{display:“flex”,alignItems:“center”,
+padding:“12px 18px”,background:P.surfaceAlt,cursor:“pointer”}},
+h(“span”,{style:{flex:1,fontWeight:800,fontSize:15}},subject.name),
+h(“span”,{style:{color:P.muted,fontSize:12,marginRight:10}},
+`${(subject.chapters||[]).length}챕터 · ${cards.filter(c=>c.subjectId===subject.id).length}문제`),
+h(“button”,{onClick:e=>{e.stopPropagation();onDeleteSubject()},
+style:{background:“none”,border:“none”,color:P.red,fontSize:14,padding:“2px 6px”,cursor:“pointer”}},“X”),
+h(“span”,{style:{color:P.muted,marginLeft:6,fontSize:13}},open?“▲”:“▼”)
+),
+open&&h(“div”,{style:{padding:“14px 18px”,background:P.bg}},
+h(“div”,{style:{display:“flex”,gap:8,marginBottom:12}},
+h(“input”,{value:newCh,onChange:e=>setNewCh(e.target.value),
+onKeyDown:e=>{if(e.key===“Enter”&&newCh.trim()){onAddChapter(newCh.trim());setNewCh(””)}},
+placeholder:“챕터 이름 입력 후 Enter”,style:{…IS,fontSize:13,marginBottom:0}}),
+h(Btn,{small:true,onClick:()=>{if(newCh.trim()){onAddChapter(newCh.trim());setNewCh(””)}}},“추가”)
+),
+(subject.chapters||[]).length===0&&h(Empty,{small:true},“챕터를 추가하세요”),
+…(subject.chapters||[]).map(ch=>h(“div”,{key:ch.id,style:{display:“flex”,alignItems:“center”,
+padding:“9px 14px”,borderRadius:12,marginBottom:6,background:P.surface,
+border:`1px solid ${P.border}`,gap:8,flexWrap:“wrap”}},
+h(“span”,{style:{flex:1,fontSize:13,fontWeight:700}},ch.name),
+h(“span”,{style:{fontSize:11,color:P.muted}},`${cc(ch.id).length}문제`),
+dc(ch.id)>0&&h(“span”,{style:{fontSize:11,background:P.yellow,color:P.text,
+borderRadius:10,padding:“2px 9px”,fontWeight:800}},`복습 ${dc(ch.id)}`),
+h(Btn,{small:true,onClick:()=>onCreateCard(ch.id)},”+ 카드”),
+h(Btn,{small:true,accent:true,onClick:()=>onStudy(ch.id)},“학습”),
+h(“button”,{onClick:()=>onDeleteChapter(ch.id),
+style:{background:“none”,border:“none”,color:P.red,cursor:“pointer”,fontSize:13}},“X”)
+))
+)
+);
+}
+
+// ── HomeView ──────────────────────────────────────────────────────────────────
+function HomeView({subjects,cards,persist,setView,setSelectedSubject,setSelectedChapter}) {
+const [ns,setNs]=useState(””);
+const add=()=>{const n=ns.trim();if(!n)return;persist({subjects:[…subjects,{id:uid(),name:n,chapters:[]}],cards});setNs(””)};
+const addCh=(sid,name)=>persist({subjects:subjects.map(s=>s.id===sid?{…s,chapters:[…(s.chapters||[]),{id:uid(),name}]}:s),cards});
+const delS=id=>persist({subjects:subjects.filter(s=>s.id!==id),cards:cards.filter(c=>c.subjectId!==id)});
+const delC=(sid,cid)=>persist({subjects:subjects.map(s=>s.id===sid?{…s,chapters:s.chapters.filter(c=>c.id!==cid)}:s),cards:cards.filter(c=>!(c.subjectId===sid&&c.chapterId===cid))});
+return h(“div”,{style:{animation:“fadeIn .3s ease”}},
+h(Section,{label:“과목 관리”},
+h(“div”,{style:{display:“flex”,gap:8,marginBottom:20}},
+h(“input”,{value:ns,onChange:e=>setNs(e.target.value),
+onKeyDown:e=>e.key===“Enter”&&add(),
+placeholder:“새 과목 이름 입력 후 Enter”,style:IS}),
+h(Btn,{accent:true,onClick:add},“추가”)
+),
+subjects.length===0&&h(Empty,null,“과목을 추가해서 학습을 시작하세요”),
+…subjects.map(sub=>h(SubjectCard,{
+key:sub.id,subject:sub,cards,
+onAddChapter:name=>addCh(sub.id,name),
+onDeleteSubject:()=>delS(sub.id),
+onDeleteChapter:cid=>delC(sub.id,cid),
+onStudy:cid=>{setSelectedSubject(sub.id);setSelectedChapter(cid);setView(“study”)},
+onCreateCard:cid=>{setSelectedSubject(sub.id);setSelectedChapter(cid);setView(“create”)}
+}))
+)
+);
+}
+
+// ── CreateView ────────────────────────────────────────────────────────────────
+function CreateView({subjects,cards,persist,selectedSubject,setSelectedSubject,selectedChapter,setSelectedChapter}) {
+const [title,setTitle]=useState(””); const [hint,setHint]=useState(””); const [body,setBody]=useState(””); const [preview,setPreview]=useState(false);
+const textRef=useRef(null);
+const chapters=subjects.find(s=>s.id===selectedSubject)?.chapters||[];
+const wrap=()=>{
+const ta=textRef.current; if(!ta) return;
+const{selectionStart:s,selectionEnd:e}=ta; if(s===e) return;
+setBody(body.slice(0,s)+`[[${body.slice(s,e)}]]`+body.slice(e));
+setTimeout(()=>{ta.focus();ta.setSelectionRange(s+2,e+2)},0);
+};
+const save=()=>{
+if(!title.trim()||!body.trim()||!selectedSubject||!selectedChapter){alert(“과목, 챕터, 제목, 본문을 모두 입력하세요.”);return;}
+if(parseBlanks(body).filter(p=>p.type===“blank”).length===0){alert(“본문에 [[빈칸]]을 하나 이상 지정하세요.”);return;}
+persist({subjects,cards:[…cards,{id:uid(),subjectId:selectedSubject,chapterId:selectedChapter,
+title:title.trim(),hint:hint.trim(),body:body.trim(),created:new Date().toISOString()}]});
+setTitle(””);setHint(””);setBody(””);setPreview(false);
+};
+const parts=parseBlanks(body);
+return h(“div”,{style:{animation:“fadeIn .3s ease”}},
+h(Section,{label:“새 카드 만들기”},
+h(“div”,{style:{background:P.bg,border:`2px solid ${P.border}`,borderRadius:16,padding:20,boxShadow:“0 2px 8px rgba(0,0,0,0.06)”}},
+h(“div”,{style:{display:“grid”,gridTemplateColumns:“1fr 1fr”,gap:10,marginBottom:14}},
+h(“div”,null,
+h(Label,null,“과목”),
+h(“select”,{value:selectedSubject||””,onChange:e=>{setSelectedSubject(e.target.value);setSelectedChapter(null)},style:IS},
+h(“option”,{value:””},”– 과목 선택 –”),
+…subjects.map(s=>h(“option”,{key:s.id,value:s.id},s.name))
+)
+),
+h(“div”,null,
+h(Label,null,“챕터”),
+h(“select”,{value:selectedChapter||””,onChange:e=>setSelectedChapter(e.target.value),style:IS,disabled:!selectedSubject},
+h(“option”,{value:””},”– 챕터 선택 –”),
+…chapters.map(c=>h(“option”,{key:c.id,value:c.id},c.name))
+)
+)
+),
+h(Label,null,“제목”),
+h(“input”,{value:title,onChange:e=>setTitle(e.target.value),placeholder:“카드 제목…”,style:{…IS,marginBottom:10}}),
+h(Label,null,“힌트 (선택)”),
+h(“input”,{value:hint,onChange:e=>setHint(e.target.value),placeholder:“힌트…”,style:{…IS,marginBottom:10}}),
+h(Label,null,“본문 — 가릴 부분을 드래그 후 아래 버튼 클릭”),
+h(“textarea”,{ref:textRef,value:body,onChange:e=>setBody(e.target.value),rows:6,
+placeholder:“본문 내용을 입력하세요.\n예: 광합성은 [[엽록체]]에서 일어난다.”,
+style:{…IS,display:“block”,resize:“vertical”,lineHeight:1.8}}),
+h(“div”,{style:{display:“flex”,gap:8,marginTop:12,flexWrap:“wrap”}},
+h(Btn,{onClick:wrap},“선택 → [[빈칸]]”),
+h(Btn,{onClick:()=>setPreview(p=>!p)},preview?“편집 모드”:“미리보기”),
+h(Btn,{accent:true,onClick:save},“저장”)
+),
+preview&&body&&h(“div”,{style:{marginTop:16,padding:16,background:P.surfaceAlt,borderRadius:12,border:`2px solid ${P.borderSoft}`,lineHeight:1.9}},
+h(“div”,{style:{fontSize:11,color:P.muted,marginBottom:8,fontWeight:700}},`미리보기 — 빈칸 ${parts.filter(p=>p.type==="blank").length}개`),
+…parts.map((p,i)=>p.type===“blank”
+?h(“span”,{key:i,style:{display:“inline-block”,background:P.accent+“22”,border:`2px solid ${P.accent}`,borderRadius:6,padding:“0 8px”,margin:“0 3px”,color:P.accent,fontWeight:800}},”　　　“)
+:h(“span”,{key:i},h(TextWithBreaks,{value:p.value}))
+)
+)
+),
+selectedSubject&&selectedChapter&&h(“div”,{style:{marginTop:20}},
+h(Label,null,`이 챕터의 카드 (${cards.filter(c=>c.subjectId===selectedSubject&&c.chapterId===selectedChapter).length}개)`),
+…cards.filter(c=>c.subjectId===selectedSubject&&c.chapterId===selectedChapter).map(card=>
+h(“div”,{key:card.id,style:{display:“flex”,alignItems:“center”,padding:“9px 14px”,
+background:P.bg,border:`1px solid ${P.border}`,borderRadius:12,marginBottom:6,gap:10}},
+h(“span”,{style:{flex:1,fontSize:13,fontWeight:700}},card.title),
+h(“span”,{style:{fontSize:11,color:P.muted}},`${parseBlanks(card.body).filter(p=>p.type==="blank").length}빈칸`),
+h(“button”,{onClick:()=>persist({subjects,cards:cards.filter(c=>c.id!==card.id)}),
+style:{background:“none”,border:“none”,color:P.red,cursor:“pointer”}},“X”)
+)
+)
+)
+)
+);
+}
+
+// ── QuizBody ──────────────────────────────────────────────────────────────────
+function QuizBody({parts,phase,inputs,currentBlank,inputRef,handleInput,handleEnter}) {
+let bi=0;
+return parts.map((p,i)=>{
+if(p.type===“text”) return h(“span”,{key:i},h(TextWithBreaks,{value:p.value}));
+const bIdx=bi++;
+if(phase===“result”) {
+const ok=(inputs[bIdx]||””).trim()===p.value.trim();
+return h(“span”,{key:i,style:{display:“inline-flex”,flexDirection:“column”,alignItems:“center”,verticalAlign:“bottom”,margin:“0 4px”}},
+h(“span”,{style:{fontSize:11,color:ok?P.green:P.red,textDecoration:ok?“none”:“line-through”,fontWeight:700}},inputs[bIdx]||”(공백)”),
+h(“span”,{style:{background:ok?P.green+“22”:P.red+“22”,border:`2px solid ${ok?P.green:P.red}`,borderRadius:6,padding:“0 8px”,color:ok?P.green:P.red,fontWeight:800,minWidth:60,textAlign:“center”,display:“inline-block”}},p.value)
+);
+}
+if(bIdx<currentBlank) return h(“span”,{key:i,style:{background:P.blue+“22”,border:`2px solid ${P.blue}`,borderRadius:6,padding:“0 8px”,color:P.blue,fontWeight:800,margin:“0 2px”}},inputs[bIdx]||”　“);
+if(bIdx===currentBlank) return h(“span”,{key:i,style:{background:P.accent+“18”,borderBottom:`3px solid ${P.accent}`,padding:“0 4px”,borderRadius:“6px 6px 0 0”}},
+h(“input”,{ref:inputRef,value:inputs[bIdx]||””,onChange:e=>handleInput(e.target.value),
+onKeyDown:e=>e.key===“Enter”&&handleEnter(),
+style:{background:“none”,border:“none”,outline:“none”,color:P.accent,fontFamily:“inherit”,
+fontSize:15,width:Math.max(80,((inputs[bIdx]||””).length+2)*10),fontWeight:800}})
+);
+return h(“span”,{key:i,style:{display:“inline-block”,background:”#e8d8c8”,borderRadius:6,padding:“0 12px”,margin:“0 2px”,minWidth:60}},”　　“);
+});
+}
+
+// ── StudyView ─────────────────────────────────────────────────────────────────
+function StudyView({cards,persist,subjects,selectedSubject,selectedChapter,setView}) {
+const deck=cards.filter(c=>(!selectedSubject||c.subjectId===selectedSubject)&&(!selectedChapter||c.chapterId===selectedChapter));
+const [idx,setIdx]=useState(0); const [phase,setPhase]=useState(“answering”); const [inputs,setInputs]=useState([]); const [cb,setCb]=useState(0); const inputRef=useRef(null);
+const card=deck[idx]; const parts=card?parseBlanks(card.body):[]; const blanks=parts.filter(p=>p.type===“blank”);
+useEffect(()=>{if(card){setInputs([]);setCb(0);setPhase(“answering”)}},[idx]);
+useEffect(()=>{if(phase===“answering”) setTimeout(()=>inputRef.current&&inputRef.current.focus(),80)},[phase,cb]);
+if(deck.length===0) return h(“div”,{style:{textAlign:“center”,padding:60}},
+h(“div”,{style:{fontSize:32,color:P.muted,marginBottom:12}},”—”),
+h(“div”,{style:{color:P.muted}},“이 챕터에 카드가 없습니다”),
+h(“div”,{style:{marginTop:20}},h(Btn,{onClick:()=>setView(“home”)},“홈으로”))
+);
+if(idx>=deck.length) return h(“div”,{style:{textAlign:“center”,padding:60}},
+h(“div”,{style:{fontFamily:”‘Gaegu’,cursive”,fontWeight:700,fontSize:28,color:P.accent,marginBottom:8}},“완료!”),
+h(“div”,{style:{color:P.muted,marginBottom:24}},“모든 카드를 학습했습니다”),
+h(Btn,{onClick:()=>setIdx(0)},“다시 학습”),
+h(Btn,{style:{marginLeft:10},onClick:()=>setView(“home”)},“홈으로”)
+);
+const hi=val=>{const n=[…inputs];n[cb]=val;setInputs(n)};
+const ne=()=>{
+if(phase===“result”){
+const cor=blanks.filter((b,i)=>(inputs[i]||””).trim()===b.value.trim()).length;
+persist({subjects,cards:cards.map(c=>c.id===card.id?{…c,…getNextReview(c,cor===blanks.length?2:cor>0?1:0)}:c)});
+setIdx(i=>i+1); return;
+}
+if(cb<blanks.length-1) setCb(b=>b+1); else setPhase(“result”);
+};
+const cor=i=>(inputs[i]||””).trim()===blanks[i]?.value.trim();
+const sn=subjects.find(s=>s.id===card.subjectId)?.name||””;
+const cn=subjects.find(s=>s.id===card.subjectId)?.chapters?.find(c=>c.id===card.chapterId)?.name||””;
+return h(“div”,{style:{animation:“fadeIn .3s ease”}},
+h(“div”,{style:{display:“flex”,alignItems:“center”,gap:10,marginBottom:16}},
+h(“span”,{style:{fontSize:12,color:P.muted,fontWeight:700}},`${sn} · ${cn}`),
+h(“div”,{style:{flex:1,height:10,background:”#e8d8c8”,borderRadius:10,overflow:“hidden”}},
+h(“div”,{style:{width:`${(idx/deck.length)*100}%`,height:“100%”,background:P.accent,borderRadius:10,transition:“width .4s”}})
+),
+h(“span”,{style:{fontSize:12,color:P.muted,fontWeight:700}},`${idx+1} / ${deck.length}`)
+),
+h(“div”,{style:{border:`2px solid ${P.border}`,borderRadius:18,padding:24,background:P.bg,boxShadow:“0 4px 16px rgba(0,0,0,0.08)”}},
+h(“div”,{style:{fontWeight:800,fontSize:20,marginBottom:10,color:P.text}},card.title),
+card.hint&&h(“div”,{style:{fontSize:12,color:P.accent,marginBottom:14,padding:“6px 14px”,
+background:P.accent+“15”,border:`2px dashed ${P.accentDim}`,borderRadius:10,display:“inline-block”,fontWeight:700}},`힌트: ${card.hint}`),
+h(“div”,{style:{lineHeight:2.2,fontSize:15,marginBottom:20}},
+…QuizBody({parts,phase,inputs,currentBlank:cb,inputRef,handleInput:hi,handleEnter:ne})
+),
+phase===“answering”&&h(“div”,{style:{display:“flex”,alignItems:“center”,gap:12,paddingTop:12,borderTop:`1px dashed ${P.border}`}},
+h(“span”,{style:{fontSize:13,color:P.muted,fontWeight:700}},`빈칸 ${cb+1} / ${blanks.length}`),
+h(Btn,{accent:true,onClick:ne},cb<blanks.length-1?“다음 빈칸”:“채점”)
+),
+phase===“result”&&h(“div”,{style:{display:“flex”,alignItems:“center”,gap:16,paddingTop:12,borderTop:`1px dashed ${P.border}`}},
+h(“div”,{style:{flex:1,fontWeight:800}},
+h(“span”,{style:{color:P.green,fontSize:18}},blanks.filter((_,i)=>cor(i)).length),
+h(“span”,{style:{color:P.muted}},` / ${blanks.length} 정답`)
+),
+h(Btn,{accent:true,onClick:ne},“다음 문제”)
+)
+)
+);
+}
+
+// ── ReviewView ────────────────────────────────────────────────────────────────
+function ReviewView({cards,persist,subjects,setView}) {
+const due=cards.filter(isDue);
+const [idx,setIdx]=useState(0); const [phase,setPhase]=useState(“answering”); const [inputs,setInputs]=useState([]); const [cb,setCb]=useState(0); const inputRef=useRef(null);
+const card=due[idx]; const parts=card?parseBlanks(card.body):[]; const blanks=parts.filter(p=>p.type===“blank”);
+useEffect(()=>{if(card){setInputs([]);setCb(0);setPhase(“answering”)}},[idx]);
+useEffect(()=>{if(phase===“answering”) setTimeout(()=>inputRef.current&&inputRef.current.focus(),80)},[phase,cb]);
+if(due.length===0) return h(“div”,{style:{textAlign:“center”,padding:60}},
+h(“div”,{style:{fontFamily:”‘Gaegu’,cursive”,fontWeight:700,fontSize:26,color:P.accent,marginBottom:8}},“복습 완료!”),
+h(“div”,{style:{color:P.muted,marginBottom:6}},“오늘 복습할 카드가 없습니다”),
+h(“div”,{style:{fontSize:13,color:P.muted,marginBottom:28}},“망각곡선에 따라 다음 복습 일정이 자동 설정됩니다”),
+h(Btn,{accent:true,onClick:()=>setView(“home”)},“홈으로”)
+);
+if(idx>=due.length) return h(“div”,{style:{textAlign:“center”,padding:60}},
+h(“div”,{style:{fontFamily:”‘Gaegu’,cursive”,fontWeight:700,fontSize:26,color:P.accent,marginBottom:8}},“오늘 복습 완료!”),
+h(“div”,{style:{color:P.muted,marginBottom:24}},`${due.length}개 카드를 복습했습니다`),
+h(Btn,{accent:true,onClick:()=>setView(“home”)},“홈으로”)
+);
+const hi=val=>{const n=[…inputs];n[cb]=val;setInputs(n)};
+const ne=()=>{
+if(phase===“result”){
+const cc=blanks.filter((*,i)=>(inputs[i]||””).trim()===blanks[i]?.value.trim()).length;
+persist({subjects,cards:cards.map(c=>c.id===card.id?{…c,…getNextReview(c,cc===blanks.length?2:cc>0?1:0)}:c)});
+setIdx(i=>i+1); return;
+}
+if(cb<blanks.length-1) setCb(b=>b+1); else setPhase(“result”);
+};
+const cor=i=>(inputs[i]||””).trim()===blanks[i]?.value.trim();
+const sn=subjects.find(s=>s.id===card.subjectId)?.name||””;
+const cn=subjects.find(s=>s.id===card.subjectId)?.chapters?.find(c=>c.id===card.chapterId)?.name||””;
+return h(“div”,{style:{animation:“fadeIn .3s ease”}},
+h(“div”,{style:{display:“flex”,alignItems:“center”,gap:10,marginBottom:16}},
+h(“span”,{style:{fontSize:12,color:P.muted,fontWeight:700}},“복습”),
+h(“div”,{style:{flex:1,height:10,background:”#e8d8c8”,borderRadius:10,overflow:“hidden”}},
+h(“div”,{style:{width:`${(idx/due.length)*100}%`,height:“100%”,background:P.blue,borderRadius:10,transition:“width .4s”}})
+),
+h(“span”,{style:{fontSize:12,color:P.muted,fontWeight:700}},`${idx+1} / ${due.length}`)
+),
+h(“div”,{style:{border:`2px solid ${P.border}`,borderRadius:18,padding:24,background:P.bg,boxShadow:“0 4px 16px rgba(0,0,0,0.08)”}},
+h(“div”,{style:{display:“flex”,justifyContent:“space-between”,alignItems:“flex-start”,marginBottom:10,flexWrap:“wrap”,gap:8}},
+h(“div”,{style:{fontWeight:800,fontSize:20,color:P.text}},card.title),
+h(“span”,{style:{fontSize:11,color:P.muted,background:P.surfaceAlt,padding:“3px 10px”,borderRadius:10,fontWeight:700,border:`1px solid ${P.borderSoft}`}},`${sn} · ${cn}`)
+),
+card.hint&&h(“div”,{style:{fontSize:12,color:P.accent,marginBottom:14,padding:“6px 14px”,
+background:P.accent+“15”,border:`2px dashed ${P.accentDim}`,borderRadius:10,display:“inline-block”,fontWeight:700}},`힌트: ${card.hint}`),
+h(“div”,{style:{lineHeight:2.2,fontSize:15,marginBottom:20}},
+…QuizBody({parts,phase,inputs,currentBlank:cb,inputRef,handleInput:hi,handleEnter:ne})
+),
+phase===“answering”&&h(“div”,{style:{display:“flex”,gap:12,alignItems:“center”,paddingTop:12,borderTop:`1px dashed ${P.border}`}},
+h(“span”,{style:{fontSize:13,color:P.muted,fontWeight:700}},`빈칸 ${cb+1} / ${blanks.length}`),
+h(Btn,{accent:true,onClick:ne},cb<blanks.length-1?“다음 빈칸”:“채점”)
+),
+phase===“result”&&h(“div”,{style:{display:“flex”,alignItems:“center”,gap:16,paddingTop:12,borderTop:`1px dashed ${P.border}`}},
+h(“div”,{style:{fontWeight:800}},
+h(“span”,{style:{color:P.green,fontSize:18}},blanks.filter((*,i)=>cor(i)).length),
+h(“span”,{style:{color:P.muted}},` / ${blanks.length} 정답`)
+),
+h(“div”,{style:{fontSize:12,color:P.muted,fontWeight:700}},`다음 복습: ${card.interval||1}일 후`),
+h(Btn,{accent:true,onClick:ne},“다음”)
+)
+),
+h(“div”,{style:{marginTop:14,padding:“12px 18px”,background:P.surfaceAlt,borderRadius:12,
+border:`2px solid ${P.borderSoft}`,fontSize:12,color:P.muted,fontWeight:700}},
+“SM-2 망각곡선 — 정답률에 따라 복습 간격이 자동 조정됩니다”
+)
+);
+}
+
+// ── EditModal ─────────────────────────────────────────────────────────────────
+function EditModal({card,subjects,onSave,onClose}) {
+const [title,setTitle]=useState(card.title); const [hint,setHint]=useState(card.hint||””);
+const [body,setBody]=useState(card.body); const [sid,setSid]=useState(card.subjectId); const [cid,setCid]=useState(card.chapterId);
+const textRef=useRef(null);
+const chapters=subjects.find(s=>s.id===sid)?.chapters||[];
+const wrap=()=>{
+const ta=textRef.current; if(!ta) return;
+const{selectionStart:s,selectionEnd:e}=ta; if(s===e) return;
+setBody(body.slice(0,s)+`[[${body.slice(s,e)}]]`+body.slice(e));
+setTimeout(()=>{ta.focus();ta.setSelectionRange(s+2,e+2)},0);
+};
+const save=()=>{
+if(!title.trim()||!body.trim()){alert(“제목과 본문을 입력하세요.”);return;}
+if(parseBlanks(body).filter(p=>p.type===“blank”).length===0){alert(”[[빈칸]]을 하나 이상 지정하세요.”);return;}
+onSave({…card,title:title.trim(),hint:hint.trim(),body:body.trim(),subjectId:sid,chapterId:cid});
+};
+const bc=parseBlanks(body).filter(p=>p.type===“blank”).length;
+return h(“div”,{
+style:{position:“fixed”,inset:0,background:“rgba(168,200,232,0.7)”,backdropFilter:“blur(4px)”,
+zIndex:1000,display:“flex”,alignItems:“center”,justifyContent:“center”,padding:16},
+onClick:e=>e.target===e.currentTarget&&onClose()
+},
+h(“div”,{style:{background:P.bg,border:`3px solid ${P.border}`,borderRadius:20,padding:28,
+width:“100%”,maxWidth:620,maxHeight:“90vh”,overflowY:“auto”,boxShadow:“0 8px 32px rgba(0,0,0,0.15)”}},
+h(“div”,{style:{display:“flex”,justifyContent:“space-between”,alignItems:“center”,marginBottom:20}},
+h(“div”,{style:{fontFamily:”‘Gaegu’,cursive”,fontWeight:700,fontSize:22,color:P.accent}},“카드 수정”),
+h(“button”,{onClick:onClose,style:{background:P.accentDim+“33”,border:“none”,color:P.accent,
+fontSize:18,cursor:“pointer”,borderRadius:“50%”,width:32,height:32,lineHeight:“32px”,textAlign:“center”}},“X”)
+),
+h(“div”,{style:{display:“grid”,gridTemplateColumns:“1fr 1fr”,gap:10,marginBottom:14}},
+h(“div”,null,h(Label,null,“과목”),h(“select”,{value:sid,onChange:e=>{setSid(e.target.value);setCid(””)},style:IS},…subjects.map(s=>h(“option”,{key:s.id,value:s.id},s.name)))),
+h(“div”,null,h(Label,null,“챕터”),h(“select”,{value:cid,onChange:e=>setCid(e.target.value),style:IS},…chapters.map(c=>h(“option”,{key:c.id,value:c.id},c.name))))
+),
+h(Label,null,“제목”),
+h(“input”,{value:title,onChange:e=>setTitle(e.target.value),style:{…IS,marginBottom:10}}),
+h(Label,null,“힌트 (선택)”),
+h(“input”,{value:hint,onChange:e=>setHint(e.target.value),placeholder:“힌트…”,style:{…IS,marginBottom:10}}),
+h(Label,null,`본문 — 빈칸 ${bc}개`),
+h(“textarea”,{ref:textRef,value:body,onChange:e=>setBody(e.target.value),rows:8,
+style:{…IS,display:“block”,resize:“vertical”,lineHeight:1.8}}),
+h(“div”,{style:{display:“flex”,gap:8,marginTop:12,flexWrap:“wrap”}},
+h(Btn,{onClick:wrap},“선택 → [[빈칸]]”),
+h(“div”,{style:{flex:1}}),
+h(Btn,{onClick:onClose},“취소”),
+h(Btn,{accent:true,onClick:save},“저장”)
+)
+)
+);
+}
+
+// ── CardsView ─────────────────────────────────────────────────────────────────
+function CardsView({subjects,cards,persist}) {
+const [fs,setFs]=useState(””); const [fc,setFc]=useState(””); const [q,setQ]=useState(””);
+const [editCard,setEditCard]=useState(null); const [expanded,setExpanded]=useState(null);
+const chapters=subjects.find(s=>s.id===fs)?.chapters||[];
+const filtered=cards.filter(c=>{
+if(fs&&c.subjectId!==fs) return false;
+if(fc&&c.chapterId!==fc) return false;
+if(q){const ql=q.toLowerCase();return c.title.toLowerCase().includes(ql)||c.body.toLowerCase().includes(ql);}
+return true;
+});
+const del=id=>{if(!confirm(“이 카드를 삭제할까요?”))return;persist({subjects,cards:cards.filter(c=>c.id!==id)})};
+const saveEdit=u=>{persist({subjects,cards:cards.map(c=>c.id===u.id?u:c)});setEditCard(null)};
+const getSN=c=>subjects.find(s=>s.id===c.subjectId)?.name||”?”;
+const getCN=c=>subjects.find(s=>s.id===c.subjectId)?.chapters?.find(ch=>ch.id===c.chapterId)?.name||”?”;
+return h(“div”,{style:{animation:“fadeIn .3s ease”}},
+editCard&&h(EditModal,{card:editCard,subjects,onSave:saveEdit,onClose:()=>setEditCard(null)}),
+h(Section,{label:`카드 목록 (${filtered.length}개)`},
+h(“div”,{style:{display:“grid”,gridTemplateColumns:“1fr 1fr 2fr”,gap:8,marginBottom:16,alignItems:“end”}},
+h(“div”,null,h(Label,null,“과목”),h(“select”,{value:fs,onChange:e=>{setFs(e.target.value);setFc(””)},style:{…IS,marginBottom:0}},h(“option”,{value:””},“전체”),…subjects.map(s=>h(“option”,{key:s.id,value:s.id},s.name)))),
+h(“div”,null,h(Label,null,“챕터”),h(“select”,{value:fc,onChange:e=>setFc(e.target.value),style:{…IS,marginBottom:0},disabled:!fs},h(“option”,{value:””},“전체”),…chapters.map(c=>h(“option”,{key:c.id,value:c.id},c.name)))),
+h(“div”,null,h(Label,null,“검색”),h(“input”,{value:q,onChange:e=>setQ(e.target.value),placeholder:“제목 또는 본문 검색…”,style:{…IS,marginBottom:0}}))
+),
+filtered.length===0&&h(Empty,null,“카드가 없습니다”),
+…filtered.map(card=>{
+const parts=parseBlanks(card.body); const bc=parts.filter(p=>p.type===“blank”).length;
+const isExp=expanded===card.id; const due=isDue(card);
+return h(“div”,{key:card.id,style:{border:`2px solid ${isExp?P.accent:P.border}`,borderRadius:14,
+marginBottom:10,overflow:“hidden”,transition:“border-color .2s”,boxShadow:“0 2px 8px rgba(0,0,0,0.05)”}},
+h(“div”,{style:{display:“flex”,alignItems:“center”,padding:“11px 16px”,
+background:isExp?P.accent+“10”:P.surface,gap:10,flexWrap:“wrap”}},
+h(“div”,{style:{cursor:“pointer”,flex:1,minWidth:0},onClick:()=>setExpanded(isExp?null:card.id)},
+h(“div”,{style:{fontWeight:800,fontSize:14,whiteSpace:“nowrap”,overflow:“hidden”,textOverflow:“ellipsis”}},card.title),
+h(“div”,{style:{fontSize:11,color:P.muted,marginTop:3,fontWeight:700}},
+`${getSN(card)} · ${getCN(card)} · 빈칸 ${bc}개`,
+due&&h(“span”,{style:{marginLeft:8,background:P.yellow,color:P.text,borderRadius:8,padding:“1px 7px”,fontSize:10,fontWeight:800}},“복습 대기”)
+)
+),
+h(Btn,{small:true,onClick:()=>setEditCard(card)},“수정”),
+h(“button”,{onClick:()=>del(card.id),style:{background:“none”,border:“none”,color:P.red,cursor:“pointer”,fontSize:15,padding:“2px 6px”}},“X”),
+h(“span”,{style:{color:P.muted,cursor:“pointer”,fontSize:13},onClick:()=>setExpanded(isExp?null:card.id)},isExp?“▲”:“▼”)
+),
+isExp&&h(“div”,{style:{padding:“16px 18px”,background:P.bg}},
+card.hint&&h(“div”,{style:{fontSize:12,color:P.accent,marginBottom:12,padding:“5px 12px”,
+background:P.accent+“15”,border:`2px dashed ${P.accentDim}`,borderRadius:10,display:“inline-block”,fontWeight:700}},`힌트: ${card.hint}`),
+h(“div”,{style:{lineHeight:2,fontSize:14}},
+…parts.map((p,i)=>p.type===“blank”
+?h(“span”,{key:i,style:{display:“inline-block”,background:P.accent+“22”,border:`2px solid ${P.accent}`,borderRadius:6,padding:“0 8px”,color:P.accent,fontWeight:800,margin:“0 3px”}},p.value)
+:h(“span”,{key:i},h(TextWithBreaks,{value:p.value}))
+)
+),
+card.nextReview&&h(“div”,{style:{marginTop:10,fontSize:11,color:P.muted,fontWeight:700}},
+`다음 복습: ${new Date(card.nextReview).toLocaleDateString("ko-KR")} · 반복 ${card.reps||0}회`
+)
+)
+);
+})
+)
+);
+}
+
+// ── App ───────────────────────────────────────────────────────────────────────
+function App() {
+const [data,setData]=useState(()=>loadData());
+const [view,setView]=useState(“home”);
+const [selSub,setSelSub]=useState(null);
+const [selCh,setSelCh]=useState(null);
+const persist=useCallback(next=>{setData(next);saveData(next)},[]);
+const subjects=data.subjects||[], cards=data.cards||[];
+const dueCount=cards.filter(isDue).length;
+return h(“div”,{style:{maxWidth:800,margin:“0 auto”,padding:“20px 16px 40px”}},
+h(Header,{view,setView,dueCount,setSelectedSubject:setSelSub,setSelectedChapter:setSelCh}),
+view===“home”&&h(HomeView,{subjects,cards,persist,setView,setSelectedSubject:setSelSub,setSelectedChapter:setSelCh}),
+view===“create”&&h(CreateView,{subjects,cards,persist,selectedSubject:selSub,setSelectedSubject:setSelSub,selectedChapter:selCh,setSelectedChapter:setSelCh}),
+view===“cards”&&h(CardsView,{subjects,cards,persist}),
+view===“study”&&h(StudyView,{cards,persist,subjects,selectedSubject:selSub,selectedChapter:selCh,setView}),
+view===“review”&&h(ReviewView,{cards,persist,subjects,setView})
+);
+}
+
+ReactDOM.createRoot(document.getElementById(“root”)).render(h(App));
+</script>
+
+</body>
+</html>
