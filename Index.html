@@ -2,811 +2,824 @@
 
 <html lang="ko">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLANKQUIZ</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{
-  background-color:#a8c8e8;
-  background-image:radial-gradient(circle,#fff 2px,transparent 2px);
-  background-size:22px 22px;
-  font-family:'Nanum Gothic',sans-serif;
-  color:#3d2b1f;
-  min-height:100vh;
-}
-@import url('https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Nanum+Gothic:wght@400;700;800&display=swap');
-input,textarea,select{font-family:'Nanum Gothic',sans-serif;box-sizing:border-box}
-button{font-family:'Nanum Gothic',sans-serif;cursor:pointer}
-::-webkit-scrollbar{width:6px}
-::-webkit-scrollbar-thumb{background:#e07b6a;border-radius:10px}
-@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-.fade{animation:fadeIn .3s ease}
-
-/* Layout */
-#app{max-width:800px;margin:0 auto;padding:20px 16px 40px}
-
-/* Header */
-.hdr-banner{background:#c8e88a;border-radius:20px;padding:20px 28px 16px;margin-bottom:12px;text-align:center;cursor:pointer;border:3px solid #a8d060;box-shadow:0 4px 16px rgba(0,0,0,.1)}
-.hdr-title{font-family:‘Gaegu’,cursive;font-weight:700;font-size:34px;color:#e07b6a;letter-spacing:1px;text-shadow:2px 2px 0 rgba(255,255,255,.6)}
-.hdr-sub{font-size:12px;color:#9a7c6e;margin-top:4px;font-weight:700}
-.hdr-nav{background:#e07b6a;border-radius:14px;padding:10px 16px;display:flex;gap:8px;flex-wrap:wrap;box-shadow:0 3px 10px rgba(224,123,106,.25)}
-.nav-btn{background:rgba(255,255,255,.75);color:#e07b6a;border:2px solid rgba(224,123,106,.4);border-radius:20px;padding:6px 18px;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s}
-.nav-btn.active{background:#e07b6a;color:#fff;border-color:#e07b6a;box-shadow:0 3px 8px rgba(224,123,106,.3)}
-.due-badge{margin-left:6px;background:#f9e07a;color:#3d2b1f;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:800}
-
-/* Section */
-.section{margin-bottom:28px}
-.section-label{display:flex;align-items:center;gap:8px;margin-bottom:14px}
-.section-bar{width:4px;height:18px;background:#e07b6a;border-radius:4px}
-.section-title{font-size:13px;font-weight:800;color:#e07b6a}
-
-/* Card box */
-.card-box{background:#fffef5;border:2px solid #f0c8a0;border-radius:16px;padding:18px 20px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:10px}
-
-/* Inputs */
-.inp{width:100%;background:#fffef5;border:2px solid #f0c8a0;border-radius:12px;padding:8px 14px;color:#3d2b1f;font-size:14px;outline:none;margin-bottom:4px;font-family:‘Nanum Gothic’,sans-serif}
-.inp:focus{border-color:#e07b6a}
-textarea.inp{resize:vertical;line-height:1.8;display:block}
-select.inp{cursor:pointer}
-
-/* Buttons */
-.btn{background:#fff;color:#e07b6a;border:2px solid #f0c8a0;border-radius:20px;padding:7px 20px;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;box-shadow:0 2px 4px rgba(0,0,0,.08);font-family:‘Nanum Gothic’,sans-serif}
-.btn:hover{transform:translateY(-1px);box-shadow:0 4px 8px rgba(0,0,0,.12)}
-.btn.accent{background:#e07b6a;color:#fff;border-color:#e07b6a}
-.btn.small{padding:4px 14px;font-size:12px}
-.btn.danger{background:#e05050;color:#fff;border-color:#e05050}
-
-/* Label */
-.lbl{font-size:12px;color:#9a7c6e;margin-bottom:5px;font-weight:700}
-
-/* Empty */
-.empty{color:#9a7c6e;text-align:center;padding:32px;font-size:14px}
-.empty.small{padding:10px 0;font-size:12px}
-
-/* Subject card */
-.subj-hdr{display:flex;align-items:center;padding:12px 18px;background:#f0f9e8;cursor:pointer;border-radius:14px 14px 0 0}
-.subj-body{padding:14px 18px;background:#fffef5}
-.ch-row{display:flex;align-items:center;padding:9px 14px;border-radius:12px;margin-bottom:6px;background:#fff8f0;border:1px solid #f0c8a0;gap:8px;flex-wrap:wrap}
-
-/* Quiz card */
-.quiz-card{border:2px solid #f0c8a0;border-radius:18px;padding:24px;background:#fffef5;box-shadow:0 4px 16px rgba(0,0,0,.08)}
-.progress-bar{height:10px;background:#e8d8c8;border-radius:10px;overflow:hidden;flex:1}
-.progress-fill{height:100%;border-radius:10px;transition:width .4s}
-
-/* Blank input */
-.blank-wrap{background:rgba(224,123,106,.1);border-bottom:3px solid #e07b6a;padding:0 4px;border-radius:6px 6px 0 0;display:inline}
-.blank-input{background:none;border:none;outline:none;color:#e07b6a;font-size:15px;font-weight:800;font-family:‘Nanum Gothic’,sans-serif;min-width:60px}
-.blank-filled{background:rgba(91,155,213,.15);border:2px solid #5b9bd5;border-radius:6px;padding:0 8px;color:#5b9bd5;font-weight:800;margin:0 2px;display:inline-block}
-.blank-slot{display:inline-block;background:#e8d8c8;border-radius:6px;padding:0 12px;margin:0 2px;min-width:60px}
-.blank-result-ok{display:inline-flex;flex-direction:column;align-items:center;vertical-align:bottom;margin:0 4px}
-.blank-result-ok .ans{background:rgba(92,184,92,.15);border:2px solid #5cb85c;border-radius:6px;padding:0 8px;color:#5cb85c;font-weight:800;min-width:60px;text-align:center;display:inline-block}
-.blank-result-ok .inp-val{font-size:11px;color:#5cb85c;font-weight:700}
-.blank-result-ng{display:inline-flex;flex-direction:column;align-items:center;vertical-align:bottom;margin:0 4px}
-.blank-result-ng .ans{background:rgba(224,80,80,.15);border:2px solid #e05050;border-radius:6px;padding:0 8px;color:#e05050;font-weight:800;min-width:60px;text-align:center;display:inline-block}
-.blank-result-ng .inp-val{font-size:11px;color:#e05050;font-weight:700;text-decoration:line-through}
-
-/* Modal */
-.modal-bg{position:fixed;inset:0;background:rgba(168,200,232,.7);backdrop-filter:blur(4px);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px}
-.modal-box{background:#fffef5;border:3px solid #f0c8a0;border-radius:20px;padding:28px;width:100%;max-width:620px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.15)}
-
-/* Grid helpers */
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.grid3{display:grid;grid-template-columns:1fr 1fr 2fr;gap:8px;align-items:end}
-.flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.flex1{flex:1}
-.hint-box{font-size:12px;color:#e07b6a;margin-bottom:14px;padding:6px 14px;background:rgba(224,123,106,.08);border:2px dashed #f0a898;border-radius:10px;display:inline-block;font-weight:700}
-.sm2-box{margin-top:14px;padding:12px 18px;background:#f0f9e8;border-radius:12px;border:2px solid #d4ecc0;font-size:12px;color:#9a7c6e;font-weight:700}
-.review-badge{font-size:11px;background:#f9e07a;color:#3d2b1f;border-radius:10px;padding:2px 9px;font-weight:800}
-.due-tag{font-size:10px;background:#f9e07a;color:#3d2b1f;border-radius:8px;padding:1px 7px;font-weight:800;margin-left:8px}
-.preview-box{margin-top:16px;padding:16px;background:#f0f9e8;border-radius:12px;border:2px solid #d4ecc0;line-height:1.9}
-.preview-blank{display:inline-block;background:rgba(224,123,106,.15);border:2px solid #e07b6a;border-radius:6px;padding:0 8px;margin:0 3px;color:#e07b6a;font-weight:800}
-.tag-sm{font-size:11px;background:#f0f9e8;color:#9a7c6e;padding:3px 10px;border-radius:10px;font-weight:700;border:1px solid #d4ecc0}
-</style>
-
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BLANKQUIZ</title>
+  <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Nanum+Gothic:wght@400;700;800&display=swap" rel="stylesheet"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #a8c8e8;
+      background-image: radial-gradient(circle, #fff 2px, transparent 2px);
+      background-size: 22px 22px;
+      font-family: 'Nanum Gothic', sans-serif;
+      color: #3d2b1f;
+      min-height: 100vh;
+    }
+    input, textarea, select { font-family: 'Nanum Gothic', sans-serif; }
+    button { font-family: 'Nanum Gothic', sans-serif; cursor: pointer; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: #e07b6a; border-radius: 10px; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  </style>
 </head>
 <body>
-<div id="app"></div>
+<div id="root"></div>
 <script>
-// ── State ─────────────────────────────────────────────────────────────────────
-let _store = {subjects:[],cards:[]};
-function loadData(){try{const r=localStorage.getItem('bq_v1');if(r)return JSON.parse(r);}catch{}return _store;}
-function saveData(d){_store=d;try{localStorage.setItem('bq_v1',JSON.stringify(d));}catch{}}
-const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
+const {useState,useEffect,useRef,useCallback,createElement:h,Fragment} = React;
 
-let state = {
-data: loadData(),
-view: ‘home’,
-selSub: null, selCh: null,
-// study
-deck:[], idx:0, phase:‘answering’, inputs:[], cb:0,
-// cards view
-fs:’’, fc:’’, q:’’, editCard:null, expanded:null,
-// create
-cTitle:’’, cHint:’’, cBody:’’, cPreview:false,
+const P = {
+bg:”#fffef5”, surface:”#fff8f0”, surfaceAlt:”#f0f9e8”,
+border:”#f0c8a0”, borderSoft:”#d4ecc0”,
+accent:”#e07b6a”, accentDim:”#f0a898”,
+header:”#c8e88a”, headerDark:”#a8d060”,
+nav:”#e07b6a”, text:”#3d2b1f”, muted:”#9a7c6e”,
+green:”#5cb85c”, red:”#e05050”, blue:”#5b9bd5”, yellow:”#f9e07a”,
+purple:”#9b7fd4”,
 };
 
-function persist(data){state.data=data;saveData(data);render();}
-function setState(patch){Object.assign(state,patch);render();}
+const IS = {
+width:“100%”, background:”#fffef5”, border:“2px solid #f0c8a0”,
+borderRadius:12, padding:“8px 14px”, color:”#3d2b1f”,
+fontSize:14, outline:“none”, marginBottom:4,
+};
 
 // ── SM-2 ──────────────────────────────────────────────────────────────────────
-function getNextReview(card,quality){
-let{interval=1,ease=2.5,reps=0}=card;
-if(quality===0){interval=1;reps=0;}
-else{
-if(reps===0)interval=1;
-else if(reps===1)interval=6;
+function getNextReview(card, quality) {
+let {interval=1, ease=2.5, reps=0} = card;
+if (quality===0) { interval=1; reps=0; }
+else {
+if (reps===0) interval=1;
+else if (reps===1) interval=6;
 else interval=Math.round(interval*ease);
 reps+=1;
-ease=Math.max(1.3,ease+(0.1-(2-quality)*(0.08+(2-quality)*0.02)));
+ease=Math.max(1.3, ease+(0.1-(2-quality)*(0.08+(2-quality)*0.02)));
 }
-const d=new Date();d.setDate(d.getDate()+interval);
-return{interval,ease,reps,nextReview:d.toISOString(),lastReview:new Date().toISOString()};
+const d=new Date(); d.setDate(d.getDate()+interval);
+return {interval, ease, reps, nextReview:d.toISOString(), lastReview:new Date().toISOString()};
 }
 
-function parseBlanks(text){
-const parts=[],re=/[[([^]]+)]]/g;let last=0,m;
-while((m=re.exec(text))!==null){
-if(m.index>last)parts.push({type:‘text’,value:text.slice(last,m.index)});
-parts.push({type:‘blank’,value:m[1]});
+// ── Storage — 기존 키 유지 ─────────────────────────────────────────────────────
+let _store = {subjects:[], cards:[]};
+function loadData() {
+// bq_v1(vanilla버전) 또는 blankquiz_v1(react버전) 모두 지원
+try {
+const r = localStorage.getItem(“blankquiz_v1”) || localStorage.getItem(“bq_v1”);
+if (r) return JSON.parse(r);
+} catch {}
+return _store;
+}
+function saveData(d) {
+_store = d;
+try { localStorage.setItem(“blankquiz_v1”, JSON.stringify(d)); } catch {}
+}
+const uid = () => Math.random().toString(36).slice(2)+Date.now().toString(36);
+const shuffle = arr => […arr].sort(()=>Math.random()-0.5);
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function parseBlanks(text) {
+const parts=[], re=/[[([^]]+)]]/g; let last=0, m;
+while ((m=re.exec(text))!==null) {
+if (m.index>last) parts.push({type:“text”, value:text.slice(last,m.index)});
+parts.push({type:“blank”, value:m[1]});
 last=m.index+m[0].length;
 }
-if(last<text.length)parts.push({type:‘text’,value:text.slice(last)});
+if (last<text.length) parts.push({type:“text”, value:text.slice(last)});
 return parts;
 }
-const isDue=c=>!c.nextReview||new Date(c.nextReview)<=new Date();
-const getSN=c=>state.data.subjects.find(s=>s.id===c.subjectId)?.name||’?’;
-const getCN=c=>state.data.subjects.find(s=>s.id===c.subjectId)?.chapters?.find(ch=>ch.id===c.chapterId)?.name||’?’;
+const isDue = c => !c.nextReview || new Date(c.nextReview)<=new Date();
 
-// ── HTML helpers ──────────────────────────────────────────────────────────────
-function el(tag,attrs,inner){
-const e=document.createElement(tag);
-for(const[k,v]of Object.entries(attrs||{})){
-if(k.startsWith(‘on’))e.addEventListener(k.slice(2).toLowerCase(),v);
-else if(k===‘class’)e.className=v;
-else if(k===‘style’&&typeof v===‘object’)Object.assign(e.style,v);
-else e.setAttribute(k,v);
-}
-if(typeof inner===‘string’)e.innerHTML=inner;
-else if(Array.isArray(inner))inner.filter(Boolean).forEach(c=>typeof c===‘string’?e.appendChild(document.createTextNode(c)):e.appendChild(c));
-else if(inner instanceof Node)e.appendChild(inner);
-return e;
-}
-function btn(text,cls,onClick){const b=el(‘button’,{class:‘btn ‘+(cls||’’),onClick});b.textContent=text;return b;}
-function inp(placeholder,value,onInput,extra={}){return el(‘input’,{class:‘inp’,placeholder,value,onInput:e=>onInput(e.target.value),…extra});}
-function lbl(text){return el(‘div’,{class:‘lbl’},text);}
-function div(…args){
-// div(className, children) or div(className, …children)
-const cls=args[0];
-const children=args.slice(1).flat().filter(Boolean);
-return el(‘div’,{class:cls},children);
+function TextWithBreaks({value}) {
+const lines=value.split(”\n”);
+return h(Fragment,null,…lines.map((l,i)=>h(Fragment,{key:i},l,i<lines.length-1?h(“br”):null)));
 }
 
-function textWithBreaks(value){
-const span=document.createElement(‘span’);
-value.split(’\n’).forEach((l,i,a)=>{
-span.appendChild(document.createTextNode(l));
-if(i<a.length-1)span.appendChild(document.createElement(‘br’));
+// ── Shared UI ─────────────────────────────────────────────────────────────────
+function Btn({children, onClick, accent, small, color, style:s={}}) {
+const bg = color||( accent ? P.accent : “#fff”);
+const col = (accent||color) ? “#fff” : P.accent;
+const brd = color||( accent ? P.accent : P.border);
+return h(“button”, {
+onClick,
+style:{background:bg, color:col, border:`2px solid ${brd}`, borderRadius:20,
+padding:small?“4px 14px”:“7px 20px”, fontSize:small?12:13, fontWeight:700,
+cursor:“pointer”, transition:“all .15s”, boxShadow:“0 2px 4px rgba(0,0,0,0.08)”, …s},
+onMouseEnter:e=>{e.currentTarget.style.transform=“translateY(-1px)”;e.currentTarget.style.boxShadow=“0 4px 8px rgba(0,0,0,0.12)”},
+onMouseLeave:e=>{e.currentTarget.style.transform=””;e.currentTarget.style.boxShadow=“0 2px 4px rgba(0,0,0,0.08)”},
+}, children);
+}
+
+function NavBtn({children, active, onClick, color}) {
+const ac = color||P.nav;
+return h(“button”, {
+onClick,
+style:{
+background:active ? ac : “rgba(255,255,255,0.75)”,
+color:active ? “#fff” : ac,
+border:`2px solid ${active ? ac : "rgba(224,123,106,0.4)"}`,
+borderRadius:20, padding:“6px 18px”, fontSize:13, fontWeight:700,
+cursor:“pointer”, transition:“all .15s”,
+boxShadow:active ? `0 3px 8px ${ac}55` : “none”,
+},
+}, children);
+}
+
+function Section({label, children}) {
+return h(“div”, {style:{marginBottom:28}},
+h(“div”, {style:{display:“flex”, alignItems:“center”, gap:8, marginBottom:14}},
+h(“div”, {style:{width:4, height:18, background:P.accent, borderRadius:4}}),
+h(“div”, {style:{fontSize:13, fontWeight:800, color:P.accent}}, label)
+),
+children
+);
+}
+function Label({children}) {
+return h(“div”, {style:{fontSize:12, color:P.muted, marginBottom:5, fontWeight:700}}, children);
+}
+function Empty({children, small}) {
+return h(“div”, {style:{color:P.muted, fontSize:small?12:14, textAlign:“center”, padding:small?“10px 0”:32}}, children);
+}
+
+// ── QuizBody (공용) ────────────────────────────────────────────────────────────
+function QuizBody({parts, phase, inputs, currentBlank, inputRef, handleInput, handleEnter}) {
+let bi=0;
+return parts.map((p,i)=>{
+if (p.type===“text”) return h(“span”,{key:i},h(TextWithBreaks,{value:p.value}));
+const bIdx=bi++;
+if (phase===“result”) {
+const ok=(inputs[bIdx]||””).trim()===p.value.trim();
+return h(“span”,{key:i,style:{display:“inline-flex”,flexDirection:“column”,alignItems:“center”,verticalAlign:“bottom”,margin:“0 4px”}},
+h(“span”,{style:{fontSize:11,color:ok?P.green:P.red,textDecoration:ok?“none”:“line-through”,fontWeight:700}},inputs[bIdx]||”(공백)”),
+h(“span”,{style:{background:ok?P.green+“22”:P.red+“22”,border:`2px solid ${ok?P.green:P.red}`,borderRadius:6,padding:“0 8px”,color:ok?P.green:P.red,fontWeight:800,minWidth:60,textAlign:“center”,display:“inline-block”}},p.value)
+);
+}
+if (bIdx<currentBlank) return h(“span”,{key:i,style:{background:P.blue+“22”,border:`2px solid ${P.blue}`,borderRadius:6,padding:“0 8px”,color:P.blue,fontWeight:800,margin:“0 2px”}},inputs[bIdx]||”　“);
+if (bIdx===currentBlank) return h(“span”,{key:i,style:{background:P.accent+“18”,borderBottom:`3px solid ${P.accent}`,padding:“0 4px”,borderRadius:“6px 6px 0 0”}},
+h(“input”,{ref:inputRef,value:inputs[bIdx]||””,onChange:e=>handleInput(e.target.value),
+onKeyDown:e=>e.key===“Enter”&&handleEnter(),
+style:{background:“none”,border:“none”,outline:“none”,color:P.accent,fontFamily:“inherit”,fontSize:15,width:Math.max(80,((inputs[bIdx]||””).length+2)*10),fontWeight:800}})
+);
+return h(“span”,{key:i,style:{display:“inline-block”,background:”#e8d8c8”,borderRadius:6,padding:“0 12px”,margin:“0 2px”,minWidth:60}},”　　“);
 });
-return span;
 }
 
 // ── Header ────────────────────────────────────────────────────────────────────
-function renderHeader(){
-const {view,data} = state;
-const dueCount = data.cards.filter(isDue).length;
-
-const banner = el(‘div’,{class:‘hdr-banner’,onClick:()=>setState({view:‘home’})}, [
-el(‘div’,{class:‘hdr-title’},‘BLANKQUIZ’),
-el(‘div’,{class:‘hdr-sub’},‘빈칸 학습 · 망각곡선 복습 시스템’),
-]);
-
-function navBtn(label,v,extra=’’){
-const b=el(‘button’,{class:‘nav-btn’+(view===v?’ active’:’’),onClick:()=>{
-if(v===‘create’)setState({view:v,selSub:null,selCh:null,cTitle:’’,cHint:’’,cBody:’’,cPreview:false});
-else setState({view:v});
-}});
-b.textContent=label;
-if(extra){const s=el(‘span’,{class:‘due-badge’},extra);b.appendChild(s);}
-return b;
+function Header({view, setView, dueCount, setSelSub, setSelCh}) {
+return h(“div”,{style:{marginBottom:20}},
+h(“div”,{
+onClick:()=>setView(“home”),
+style:{background:P.header,borderRadius:20,padding:“20px 28px 16px”,marginBottom:12,
+textAlign:“center”,cursor:“pointer”,border:`3px solid ${P.headerDark}`,boxShadow:“0 4px 16px rgba(0,0,0,0.1)”},
+},
+h(“div”,{style:{fontFamily:”‘Gaegu’,cursive”,fontWeight:700,fontSize:34,color:P.accent,letterSpacing:1,textShadow:“2px 2px 0 rgba(255,255,255,0.6)”}},“BLANKQUIZ”),
+h(“div”,{style:{fontSize:12,color:P.muted,marginTop:4,fontWeight:700}},“빈칸 학습 · 망각곡선 복습 시스템”)
+),
+h(“div”,{style:{background:P.nav,borderRadius:14,padding:“10px 16px”,display:“flex”,gap:8,flexWrap:“wrap”,boxShadow:“0 3px 10px rgba(224,123,106,0.25)”}},
+h(NavBtn,{active:view===“home”,onClick:()=>setView(“home”)},“홈”),
+h(NavBtn,{active:view===“create”,onClick:()=>{setSelSub(null);setSelCh(null);setView(“create”)}},“카드 만들기”),
+h(NavBtn,{active:view===“cards”,onClick:()=>setView(“cards”)},“카드 목록”),
+h(NavBtn,{active:view===“test”,onClick:()=>setView(“test”),color:P.purple},“테스트”),
+h(NavBtn,{active:view===“review”,onClick:()=>setView(“review”)},
+“복습”,
+dueCount>0&&h(“span”,{style:{marginLeft:6,background:P.yellow,color:P.text,borderRadius:10,padding:“1px 8px”,fontSize:11,fontWeight:800}},dueCount)
+)
+)
+);
 }
 
-const nav=el(‘div’,{class:‘hdr-nav’},[
-navBtn(‘홈’,‘home’),
-navBtn(‘카드 만들기’,‘create’),
-navBtn(‘카드 목록’,‘cards’),
-navBtn(‘복습’,‘review’,dueCount>0?String(dueCount):’’),
-]);
-
-return el(‘div’,{},[banner,nav]);
+// ── HomeView ──────────────────────────────────────────────────────────────────
+function SubjectCard({subject, cards, onAddChapter, onDeleteSubject, onDeleteChapter, onStudy, onTest, onCreateCard}) {
+const [newCh,setNewCh]=useState(””);
+const [open,setOpen]=useState(true);
+const cc=cid=>cards.filter(c=>c.subjectId===subject.id&&c.chapterId===cid);
+const dc=cid=>cc(cid).filter(isDue).length;
+return h(“div”,{style:{border:`2px solid ${P.borderSoft}`,borderRadius:16,marginBottom:14,overflow:“hidden”,boxShadow:“0 2px 8px rgba(0,0,0,0.06)”}},
+h(“div”,{onClick:()=>setOpen(o=>!o),style:{display:“flex”,alignItems:“center”,padding:“12px 18px”,background:P.surfaceAlt,cursor:“pointer”}},
+h(“span”,{style:{flex:1,fontWeight:800,fontSize:15}},subject.name),
+h(“span”,{style:{color:P.muted,fontSize:12,marginRight:10}},`${(subject.chapters||[]).length}챕터 · ${cards.filter(c=>c.subjectId===subject.id).length}문제`),
+h(“button”,{onClick:e=>{e.stopPropagation();onDeleteSubject()},style:{background:“none”,border:“none”,color:P.red,fontSize:14,padding:“2px 6px”,cursor:“pointer”}},“X”),
+h(“span”,{style:{color:P.muted,marginLeft:6,fontSize:13}},open?“▲”:“▼”)
+),
+open&&h(“div”,{style:{padding:“14px 18px”,background:P.bg}},
+h(“div”,{style:{display:“flex”,gap:8,marginBottom:12}},
+h(“input”,{value:newCh,onChange:e=>setNewCh(e.target.value),
+onKeyDown:e=>{if(e.key===“Enter”&&newCh.trim()){onAddChapter(newCh.trim());setNewCh(””)}},
+placeholder:“챕터 이름 입력 후 Enter”,style:{…IS,fontSize:13,marginBottom:0}}),
+h(Btn,{small:true,onClick:()=>{if(newCh.trim()){onAddChapter(newCh.trim());setNewCh(””)}}},“추가”)
+),
+(subject.chapters||[]).length===0&&h(Empty,{small:true},“챕터를 추가하세요”),
+…(subject.chapters||[]).map(ch=>h(“div”,{key:ch.id,style:{display:“flex”,alignItems:“center”,padding:“9px 14px”,borderRadius:12,marginBottom:6,background:P.surface,border:`1px solid ${P.border}`,gap:8,flexWrap:“wrap”}},
+h(“span”,{style:{flex:1,fontSize:13,fontWeight:700}},ch.name),
+h(“span”,{style:{fontSize:11,color:P.muted}},`${cc(ch.id).length}문제`),
+dc(ch.id)>0&&h(“span”,{style:{fontSize:11,background:P.yellow,color:P.text,borderRadius:10,padding:“2px 9px”,fontWeight:800}},`복습 ${dc(ch.id)}`),
+h(Btn,{small:true,onClick:()=>onCreateCard(ch.id)},”+ 카드”),
+h(Btn,{small:true,style:{background:P.green,color:”#fff”,border:`2px solid ${P.green}`},onClick:()=>onStudy(ch.id)},“학습”),
+h(Btn,{small:true,style:{background:P.purple,color:”#fff”,border:`2px solid ${P.purple}`},onClick:()=>onTest(ch.id,subject.id)},“테스트”),
+h(“button”,{onClick:()=>onDeleteChapter(ch.id),style:{background:“none”,border:“none”,color:P.red,cursor:“pointer”,fontSize:13}},“X”)
+))
+)
+);
 }
 
-// ── Home ──────────────────────────────────────────────────────────────────────
-function renderHome(){
-const {data}=state;
-const {subjects,cards}=data;
-
-let nsVal=’’;
-const nsInp=inp(‘새 과목 이름 입력 후 Enter’,’’,v=>nsVal=v);
-nsInp.addEventListener(‘keydown’,e=>{
-if(e.key===‘Enter’&&nsVal.trim()){
-persist({subjects:[…subjects,{id:uid(),name:nsVal.trim(),chapters:[]}],cards});
-nsVal=’’;nsInp.value=’’;
-}
-});
-const addBtn=btn(‘추가’,‘accent’,()=>{
-if(!nsVal.trim())return;
-persist({subjects:[…subjects,{id:uid(),name:nsVal.trim(),chapters:[]}],cards});
-nsVal=’’;nsInp.value=’’;
-});
-
-const sec=el(‘div’,{class:‘section’},[
-el(‘div’,{class:‘section-label’},[el(‘div’,{class:‘section-bar’}),el(‘div’,{class:‘section-title’},‘과목 관리’)]),
-el(‘div’,{class:‘flex’,style:{marginBottom:‘20px’}},[nsInp,addBtn]),
-subjects.length===0?el(‘div’,{class:‘empty’},‘과목을 추가해서 학습을 시작하세요’):null,
-…subjects.map(sub=>renderSubjectCard(sub,cards,persist)),
-].filter(Boolean));
-
-return el(‘div’,{class:‘fade’},[sec]);
+function HomeView({subjects, cards, persist, setView, setSelSub, setSelCh}) {
+const [ns,setNs]=useState(””);
+const add=()=>{const n=ns.trim();if(!n)return;persist({subjects:[…subjects,{id:uid(),name:n,chapters:[]}],cards});setNs(””)};
+const addCh=(sid,name)=>persist({subjects:subjects.map(s=>s.id===sid?{…s,chapters:[…(s.chapters||[]),{id:uid(),name}]}:s),cards});
+const delS=id=>persist({subjects:subjects.filter(s=>s.id!==id),cards:cards.filter(c=>c.subjectId!==id)});
+const delC=(sid,cid)=>persist({subjects:subjects.map(s=>s.id===sid?{…s,chapters:s.chapters.filter(c=>c.id!==cid)}:s),cards:cards.filter(c=>!(c.subjectId===sid&&c.chapterId===cid))});
+return h(“div”,{style:{animation:“fadeIn .3s ease”}},
+h(Section,{label:“과목 관리”},
+h(“div”,{style:{display:“flex”,gap:8,marginBottom:20}},
+h(“input”,{value:ns,onChange:e=>setNs(e.target.value),onKeyDown:e=>e.key===“Enter”&&add(),placeholder:“새 과목 이름 입력 후 Enter”,style:IS}),
+h(Btn,{accent:true,onClick:add},“추가”)
+),
+subjects.length===0&&h(Empty,null,“과목을 추가해서 학습을 시작하세요”),
+…subjects.map(sub=>h(SubjectCard,{
+key:sub.id, subject:sub, cards,
+onAddChapter:name=>addCh(sub.id,name),
+onDeleteSubject:()=>delS(sub.id),
+onDeleteChapter:cid=>delC(sub.id,cid),
+onStudy:cid=>{setSelSub(sub.id);setSelCh(cid);setView(“study”)},
+onTest:(cid,sid)=>{setSelSub(sid);setSelCh(cid);setView(“test”)},
+onCreateCard:cid=>{setSelSub(sub.id);setSelCh(cid);setView(“create”)},
+}))
+)
+);
 }
 
-function renderSubjectCard(sub,cards,persist){
-const subCards=cards.filter(c=>c.subjectId===sub.id);
-let openState=true;
-let chVal=’’;
-
-const wrapper=el(‘div’,{style:{border:‘2px solid #d4ecc0’,borderRadius:‘16px’,marginBottom:‘14px’,overflow:‘hidden’,boxShadow:‘0 2px 8px rgba(0,0,0,.06)’}});
-
-function rebuild(){
-wrapper.innerHTML=’’;
-
-```
-// header
-const hdr=el('div',{class:'subj-hdr',onClick:()=>{openState=!openState;rebuild();}}, [
-  el('span',{style:{flex:'1',fontWeight:'800',fontSize:'15px'}},sub.name),
-  el('span',{style:{color:'#9a7c6e',fontSize:'12px',marginRight:'10px'}},`${(sub.chapters||[]).length}챕터 · ${subCards.length}문제`),
-  el('button',{class:'btn small',style:{marginRight:'4px'},onClick:e=>{
-    e.stopPropagation();
-    if(!confirm('이 과목을 삭제할까요?'))return;
-    persist({subjects:state.data.subjects.filter(s=>s.id!==sub.id),cards:state.data.cards.filter(c=>c.subjectId!==sub.id)});
-  }},'삭제'),
-  el('span',{style:{color:'#9a7c6e',fontSize:'13px'}},openState?'▲':'▼'),
-]);
-wrapper.appendChild(hdr);
-
-if(!openState)return;
-
-const body=el('div',{class:'subj-body'});
-
-// add chapter
-const chInp=inp('챕터 이름 입력 후 Enter','',v=>chVal=v);
-chInp.style.marginBottom='0';
-chInp.addEventListener('keydown',e=>{
-  if(e.key==='Enter'&&chVal.trim()){
-    const updated={...sub,chapters:[...(sub.chapters||[]),{id:uid(),name:chVal.trim()}]};
-    persist({subjects:state.data.subjects.map(s=>s.id===sub.id?updated:s),cards:state.data.cards});
-  }
-});
-const chAdd=btn('추가','small',()=>{
-  if(!chVal.trim())return;
-  const updated={...sub,chapters:[...(sub.chapters||[]),{id:uid(),name:chVal.trim()}]};
-  persist({subjects:state.data.subjects.map(s=>s.id===sub.id?updated:s),cards:state.data.cards});
-});
-body.appendChild(el('div',{class:'flex',style:{marginBottom:'12px'}},[chInp,chAdd]));
-
-if((sub.chapters||[]).length===0){
-  body.appendChild(el('div',{class:'empty small'},'챕터를 추가하세요'));
+// ── CreateView ────────────────────────────────────────────────────────────────
+function CreateView({subjects, cards, persist, selectedSubject, setSelectedSubject, selectedChapter, setSelectedChapter}) {
+const [title,setTitle]=useState(””); const [hint,setHint]=useState(””); const [body,setBody]=useState(””); const [preview,setPreview]=useState(false);
+const textRef=useRef(null);
+const chapters=subjects.find(s=>s.id===selectedSubject)?.chapters||[];
+const wrap=()=>{
+const ta=textRef.current; if(!ta) return;
+const{selectionStart:s,selectionEnd:e}=ta; if(s===e) return;
+setBody(body.slice(0,s)+`[[${body.slice(s,e)}]]`+body.slice(e));
+setTimeout(()=>{ta.focus();ta.setSelectionRange(s+2,e+2)},0);
+};
+const save=()=>{
+if(!title.trim()||!body.trim()||!selectedSubject||!selectedChapter){alert(“과목, 챕터, 제목, 본문을 모두 입력하세요.”);return;}
+if(parseBlanks(body).filter(p=>p.type===“blank”).length===0){alert(“본문에 [[빈칸]]을 하나 이상 지정하세요.”);return;}
+persist({subjects,cards:[…cards,{id:uid(),subjectId:selectedSubject,chapterId:selectedChapter,title:title.trim(),hint:hint.trim(),body:body.trim(),created:new Date().toISOString()}]});
+setTitle(””);setHint(””);setBody(””);setPreview(false);
+};
+const parts=parseBlanks(body);
+return h(“div”,{style:{animation:“fadeIn .3s ease”}},
+h(Section,{label:“새 카드 만들기”},
+h(“div”,{style:{background:P.bg,border:`2px solid ${P.border}`,borderRadius:16,padding:20,boxShadow:“0 2px 8px rgba(0,0,0,0.06)”}},
+h(“div”,{style:{display:“grid”,gridTemplateColumns:“1fr 1fr”,gap:10,marginBottom:14}},
+h(“div”,null,h(Label,null,“과목”),h(“select”,{value:selectedSubject||””,onChange:e=>{setSelectedSubject(e.target.value);setSelectedChapter(null)},style:IS},h(“option”,{value:””},”– 과목 선택 –”),…subjects.map(s=>h(“option”,{key:s.id,value:s.id},s.name)))),
+h(“div”,null,h(Label,null,“챕터”),h(“select”,{value:selectedChapter||””,onChange:e=>setSelectedChapter(e.target.value),style:IS,disabled:!selectedSubject},h(“option”,{value:””},”– 챕터 선택 –”),…chapters.map(c=>h(“option”,{key:c.id,value:c.id},c.name))))
+),
+h(Label,null,“제목”),
+h(“input”,{value:title,onChange:e=>setTitle(e.target.value),placeholder:“카드 제목…”,style:{…IS,marginBottom:10}}),
+h(Label,null,“힌트 (선택)”),
+h(“input”,{value:hint,onChange:e=>setHint(e.target.value),placeholder:“힌트…”,style:{…IS,marginBottom:10}}),
+h(Label,null,“본문 — 가릴 부분을 드래그 후 아래 버튼 클릭”),
+h(“textarea”,{ref:textRef,value:body,onChange:e=>setBody(e.target.value),rows:6,placeholder:“본문 내용을 입력하세요.\n예: 광합성은 [[엽록체]]에서 일어난다.”,style:{…IS,display:“block”,resize:“vertical”,lineHeight:1.8}}),
+h(“div”,{style:{display:“flex”,gap:8,marginTop:12,flexWrap:“wrap”}},
+h(Btn,{onClick:wrap},“선택 → [[빈칸]]”),
+h(Btn,{onClick:()=>setPreview(p=>!p)},preview?“편집 모드”:“미리보기”),
+h(Btn,{accent:true,onClick:save},“저장”)
+),
+preview&&body&&h(“div”,{style:{marginTop:16,padding:16,background:P.surfaceAlt,borderRadius:12,border:`2px solid ${P.borderSoft}`,lineHeight:1.9}},
+h(“div”,{style:{fontSize:11,color:P.muted,marginBottom:8,fontWeight:700}},`미리보기 — 빈칸 ${parts.filter(p=>p.type==="blank").length}개`),
+…parts.map((p,i)=>p.type===“blank”
+?h(“span”,{key:i,style:{display:“inline-block”,background:P.accent+“22”,border:`2px solid ${P.accent}`,borderRadius:6,padding:“0 8px”,margin:“0 3px”,color:P.accent,fontWeight:800}},”　　　“)
+:h(“span”,{key:i},h(TextWithBreaks,{value:p.value}))
+)
+)
+),
+selectedSubject&&selectedChapter&&h(“div”,{style:{marginTop:20}},
+h(Label,null,`이 챕터의 카드 (${cards.filter(c=>c.subjectId===selectedSubject&&c.chapterId===selectedChapter).length}개)`),
+…cards.filter(c=>c.subjectId===selectedSubject&&c.chapterId===selectedChapter).map(card=>
+h(“div”,{key:card.id,style:{display:“flex”,alignItems:“center”,padding:“9px 14px”,background:P.bg,border:`1px solid ${P.border}`,borderRadius:12,marginBottom:6,gap:10}},
+h(“span”,{style:{flex:1,fontSize:13,fontWeight:700}},card.title),
+h(“span”,{style:{fontSize:11,color:P.muted}},`${parseBlanks(card.body).filter(p=>p.type==="blank").length}빈칸`),
+h(“button”,{onClick:()=>persist({subjects,cards:cards.filter(c=>c.id!==card.id)}),style:{background:“none”,border:“none”,color:P.red,cursor:“pointer”}},“X”)
+)
+)
+)
+)
+);
 }
 
-(sub.chapters||[]).forEach(ch=>{
-  const chCards=state.data.cards.filter(c=>c.subjectId===sub.id&&c.chapterId===ch.id);
-  const dueCnt=chCards.filter(isDue).length;
-  const row=el('div',{class:'ch-row'});
-  row.appendChild(el('span',{style:{flex:'1',fontSize:'13px',fontWeight:'700'}},ch.name));
-  row.appendChild(el('span',{style:{fontSize:'11px',color:'#9a7c6e'}},`${chCards.length}문제`));
-  if(dueCnt>0)row.appendChild(el('span',{class:'review-badge'},`복습 ${dueCnt}`));
-  row.appendChild(btn('+ 카드','small',()=>setState({view:'create',selSub:sub.id,selCh:ch.id,cTitle:'',cHint:'',cBody:'',cPreview:false})));
-  row.appendChild(btn('학습','small accent',()=>{
-    const deck=state.data.cards.filter(c=>c.subjectId===sub.id&&c.chapterId===ch.id);
-    setState({view:'study',selSub:sub.id,selCh:ch.id,deck,idx:0,phase:'answering',inputs:[],cb:0});
-  }));
-  row.appendChild(btn('삭제','small',()=>{
-    if(!confirm('이 챕터를 삭제할까요?'))return;
-    const updated={...sub,chapters:sub.chapters.filter(c=>c.id!==ch.id)};
-    persist({subjects:state.data.subjects.map(s=>s.id===sub.id?updated:s),cards:state.data.cards.filter(c=>!(c.subjectId===sub.id&&c.chapterId===ch.id))});
-  }));
-  body.appendChild(row);
-});
+// ── StudyView (완전 숙달 모드) ─────────────────────────────────────────────────
+function StudyView({cards, persist, subjects, selSub, selCh, setView}) {
+const base = cards.filter(c=>(!selSub||c.subjectId===selSub)&&(!selCh||c.chapterId===selCh));
 
-wrapper.appendChild(body);
-```
+const [queue, setQueue] = useState(()=>base.map(c=>({card:c})));
+const [qIdx, setQIdx] = useState(0);
+const [phase, setPhase] = useState(“answering”);
+const [inputs, setInputs] = useState([]);
+// locked: 재시도 시 이전에 맞췄던 빈칸 인덱스 Set
+const [locked, setLocked] = useState(new Set());
+const [cb, setCb] = useState(0);
+const [totalDone, setTotalDone] = useState(0);
+const inputRef = useRef(null);
 
+const current = queue[qIdx];
+const card = current?.card;
+const parts = card ? parseBlanks(card.body) : [];
+const blanks = parts.filter(p=>p.type===“blank”);
+
+// 카드 바뀔 때 초기화
+useEffect(()=>{setInputs([]);setCb(0);setPhase(“answering”);setLocked(new Set())},[qIdx]);
+
+// 현재 입력 빈칸으로 포커스 (locked 건너뜀)
+useEffect(()=>{
+if(phase===“answering”) setTimeout(()=>inputRef.current?.focus(),80);
+},[phase,cb]);
+
+if (base.length===0) return h(“div”,{style:{textAlign:“center”,padding:60}},
+h(“div”,{style:{color:P.muted}},“이 챕터에 카드가 없습니다”),
+h(“div”,{style:{marginTop:20}},h(Btn,{onClick:()=>setView(“home”)},“홈으로”))
+);
+
+if (qIdx >= queue.length) {
+return h(“div”,{style:{textAlign:“center”,padding:60,animation:“fadeIn .4s ease”}},
+h(“div”,{style:{fontFamily:”‘Gaegu’,cursive”,fontSize:32,color:P.green,marginBottom:8,fontWeight:700}},“완전 숙달!”),
+h(“div”,{style:{color:P.muted,marginBottom:8}},`${base.length}개 카드 전부 마스터했습니다`),
+h(Btn,{style:{background:P.green,color:”#fff”,border:`2px solid ${P.green}`,marginRight:10},onClick:()=>{setQueue(base.map(c=>({card:c})));setQIdx(0);setTotalDone(0)}},“다시 학습”),
+h(Btn,{onClick:()=>setView(“home”)},“홈으로”)
+);
 }
 
-rebuild();
-return wrapper;
+const sn=subjects.find(s=>s.id===card.subjectId)?.name||””;
+const cn=subjects.find(s=>s.id===card.subjectId)?.chapters?.find(c=>c.id===card.chapterId)?.name||””;
+
+const hi=val=>{const n=[…inputs];n[cb]=val;setInputs(n)};
+
+// 다음 입력 가능한 빈칸 인덱스 (locked 건너뜀)
+const nextUnlocked = (from) => {
+let i = from;
+while (i < blanks.length && locked.has(i)) i++;
+return i;
+};
+
+const ne=()=>{
+if (phase===“result”) {
+const allCorrect = blanks.every((*,i)=>(inputs[i]||””).trim()===blanks[i].value.trim());
+if (allCorrect) {
+persist({subjects, cards:cards.map(c=>c.id===card.id?{…c,…getNextReview(c,2)}:c)});
+setTotalDone(d=>d+1);
+setQIdx(i=>i+1);
+} else {
+// 맞췄던 빈칸은 locked에 추가, 나머지만 다시 입력
+const newLocked = new Set(blanks.map((*,i)=>i).filter(i=>(inputs[i]||””).trim()===blanks[i].value.trim()));
+setLocked(newLocked);
+// inputs: locked된 건 정답 유지, 나머지 초기화
+const newInputs = blanks.map((b,i)=>newLocked.has(i)?b.value:””);
+setInputs(newInputs);
+setPhase(“answering”);
+const firstUnlocked = nextUnlocked(0);
+setCb(firstUnlocked < blanks.length ? firstUnlocked : 0);
 }
-
-// ── Create ────────────────────────────────────────────────────────────────────
-function renderCreate(){
-const {data,selSub,selCh,cTitle,cHint,cBody,cPreview}=state;
-const {subjects,cards}=data;
-const chapters=subjects.find(s=>s.id===selSub)?.chapters||[];
-
-const wrap=el(‘div’,{class:‘fade’});
-const sec=el(‘div’,{class:‘section’});
-sec.appendChild(el(‘div’,{class:‘section-label’},[el(‘div’,{class:‘section-bar’}),el(‘div’,{class:‘section-title’},‘새 카드 만들기’)]));
-
-const box=el(‘div’,{class:‘card-box’});
-
-// Subject / Chapter selects
-const subSel=el(‘select’,{class:‘inp’,onChange:e=>setState({selSub:e.target.value,selCh:null})});
-subSel.appendChild(el(‘option’,{value:’’},’– 과목 선택 –’));
-subjects.forEach(s=>{const o=el(‘option’,{value:s.id},s.name);if(s.id===selSub)o.selected=true;subSel.appendChild(o);});
-
-const chSel=el(‘select’,{class:‘inp’,onChange:e=>setState({selCh:e.target.value})});
-chSel.appendChild(el(‘option’,{value:’’},’– 챕터 선택 –’));
-if(selSub){
-chapters.forEach(c=>{const o=el(‘option’,{value:c.id},c.name);if(c.id===selCh)o.selected=true;chSel.appendChild(o);});
-chSel.removeAttribute(‘disabled’);
-} else {chSel.setAttribute(‘disabled’,‘disabled’);}
-
-const grid=el(‘div’,{class:‘grid2’,style:{marginBottom:‘14px’}});
-const d1=el(‘div’);d1.appendChild(lbl(‘과목’));d1.appendChild(subSel);
-const d2=el(‘div’);d2.appendChild(lbl(‘챕터’));d2.appendChild(chSel);
-grid.appendChild(d1);grid.appendChild(d2);
-box.appendChild(grid);
-
-// Title
-box.appendChild(lbl(‘제목’));
-const titleInp=el(‘input’,{class:‘inp’,placeholder:‘카드 제목…’,value:cTitle,style:{marginBottom:‘10px’},
-onInput:e=>state.cTitle=e.target.value});
-box.appendChild(titleInp);
-
-// Hint
-box.appendChild(lbl(‘힌트 (선택)’));
-const hintInp=el(‘input’,{class:‘inp’,placeholder:‘힌트…’,value:cHint,style:{marginBottom:‘10px’},
-onInput:e=>state.cHint=e.target.value});
-box.appendChild(hintInp);
-
-// Body
-box.appendChild(lbl(‘본문 — 가릴 부분을 드래그 후 아래 버튼 클릭’));
-const ta=el(‘textarea’,{class:‘inp’,rows:‘6’,placeholder:‘본문 내용을 입력하세요.\n예: 광합성은 [[엽록체]]에서 일어난다.’,
-onInput:e=>state.cBody=e.target.value});
-ta.value=cBody;
-box.appendChild(ta);
-
-// Buttons
-const wrapBtn=btn(‘선택 → [[빈칸]]’,’’,()=>{
-const s=ta.selectionStart,e2=ta.selectionEnd;
-if(s===e2)return;
-const next=ta.value.slice(0,s)+`[[${ta.value.slice(s,e2)}]]`+ta.value.slice(e2);
-ta.value=next;state.cBody=next;
-ta.focus();ta.setSelectionRange(s+2,e2+2);
-});
-const prevBtn=btn(cPreview?‘편집 모드’:‘미리보기’,’’,()=>setState({cPreview:!cPreview,cBody:ta.value,cTitle:titleInp.value,cHint:hintInp.value}));
-const saveBtn=btn(‘저장’,‘accent’,()=>{
-const t=titleInp.value.trim(),h=hintInp.value.trim(),b=ta.value.trim();
-if(!t||!b||!state.selSub||!state.selCh){alert(‘과목, 챕터, 제목, 본문을 모두 입력하세요.’);return;}
-if(parseBlanks(b).filter(p=>p.type===‘blank’).length===0){alert(‘본문에 [[빈칸]]을 하나 이상 지정하세요.’);return;}
-persist({subjects,cards:[…cards,{id:uid(),subjectId:state.selSub,chapterId:state.selCh,title:t,hint:h,body:b,created:new Date().toISOString()}]});
-state.cTitle=’’;state.cHint=’’;state.cBody=’’;state.cPreview=false;
-titleInp.value=’’;hintInp.value=’’;ta.value=’’;
-alert(‘저장됐습니다!’);
-});
-box.appendChild(el(‘div’,{class:‘flex’,style:{marginTop:‘12px’}},[wrapBtn,prevBtn,saveBtn]));
-
-// Preview
-if(cPreview&&cBody){
-const pb=el(‘div’,{class:‘preview-box’});
-pb.appendChild(el(‘div’,{style:{fontSize:‘11px’,color:’#9a7c6e’,marginBottom:‘8px’,fontWeight:‘700’}},`미리보기 — 빈칸 ${parseBlanks(cBody).filter(p=>p.type==='blank').length}개`));
-parseBlanks(cBody).forEach(p=>{
-if(p.type===‘blank’)pb.appendChild(el(‘span’,{class:‘preview-blank’},’　　　’));
-else pb.appendChild(textWithBreaks(p.value));
-});
-box.appendChild(pb);
+return;
 }
+// answering: 다음 빈칸으로 (locked 건너뜀)
+const next = nextUnlocked(cb+1);
+if (next < blanks.length) setCb(next);
+else setPhase(“result”);
+};
 
-sec.appendChild(box);
+const cor=i=>(inputs[i]||””).trim()===blanks[i]?.value.trim();
+const progressPct = base.length>0 ? (totalDone/base.length)*100 : 0;
+const unlockedCount = blanks.length - locked.size;
 
-// Card list
-if(selSub&&selCh){
-const existing=cards.filter(c=>c.subjectId===selSub&&c.chapterId===selCh);
-if(existing.length>0){
-sec.appendChild(lbl(`이 챕터의 카드 (${existing.length}개)`));
-existing.forEach(card=>{
-const row=el(‘div’,{style:{display:‘flex’,alignItems:‘center’,padding:‘9px 14px’,background:’#fffef5’,border:‘1px solid #f0c8a0’,borderRadius:‘12px’,marginBottom:‘6px’,gap:‘10px’}});
-row.appendChild(el(‘span’,{style:{flex:‘1’,fontSize:‘13px’,fontWeight:‘700’}},card.title));
-row.appendChild(el(‘span’,{style:{fontSize:‘11px’,color:’#9a7c6e’}},`${parseBlanks(card.body).filter(p=>p.type==='blank').length}빈칸`));
-row.appendChild(btn(‘삭제’,‘small’,()=>{
-if(!confirm(‘삭제할까요?’))return;
-persist({subjects,cards:cards.filter(c=>c.id!==card.id)});
-}));
-sec.appendChild(row);
-});
-}
-}
-
-wrap.appendChild(sec);
-return wrap;
-}
-
-// ── Study ─────────────────────────────────────────────────────────────────────
-function renderStudy(){
-const {deck,idx,phase,inputs,cb,data,selSub,selCh}=state;
-
-if(deck.length===0){
-return el(‘div’,{class:‘fade’,style:{textAlign:‘center’,padding:‘60px’}},[
-el(‘div’,{style:{fontSize:‘32px’,color:’#9a7c6e’,marginBottom:‘12px’}},’—’),
-el(‘div’,{style:{color:’#9a7c6e’}},‘이 챕터에 카드가 없습니다’),
-el(‘div’,{style:{marginTop:‘20px’}},[btn(‘홈으로’,’’,()=>setState({view:‘home’}))]),
-]);
-}
-
-if(idx>=deck.length){
-return el(‘div’,{class:‘fade’,style:{textAlign:‘center’,padding:‘60px’}},[
-el(‘div’,{style:{fontFamily:”‘Gaegu’,cursive”,fontWeight:‘700’,fontSize:‘28px’,color:’#e07b6a’,marginBottom:‘8px’}},‘완료!’),
-el(‘div’,{style:{color:’#9a7c6e’,marginBottom:‘24px’}},‘모든 카드를 학습했습니다’),
-btn(‘다시 학습’,’’,()=>setState({idx:0,phase:‘answering’,inputs:[],cb:0})),
-btn(‘홈으로’,’’,()=>setState({view:‘home’})),
-]);
-}
-
-const card=deck[idx];
-const parts=parseBlanks(card.body);
-const blanks=parts.filter(p=>p.type===‘blank’);
-const sn=getSN(card),cn=getCN(card);
-
-const wrap=el(‘div’,{class:‘fade’});
-
-// Progress
-const prog=el(‘div’,{class:‘flex’,style:{marginBottom:‘16px’}});
-prog.appendChild(el(‘span’,{style:{fontSize:‘12px’,color:’#9a7c6e’,fontWeight:‘700’}},`${sn} · ${cn}`));
-const bar=el(‘div’,{class:‘progress-bar’});
-const fill=el(‘div’,{class:‘progress-fill’,style:{width:`${(idx/deck.length)*100}%`,background:’#e07b6a’}});
-bar.appendChild(fill);prog.appendChild(bar);
-prog.appendChild(el(‘span’,{style:{fontSize:‘12px’,color:’#9a7c6e’,fontWeight:‘700’}},`${idx+1} / ${deck.length}`));
-wrap.appendChild(prog);
-
-const qcard=el(‘div’,{class:‘quiz-card’});
-qcard.appendChild(el(‘div’,{style:{fontWeight:‘800’,fontSize:‘20px’,marginBottom:‘10px’,color:’#3d2b1f’}},card.title));
-if(card.hint)qcard.appendChild(el(‘div’,{class:‘hint-box’},`힌트: ${card.hint}`));
-
-// Body
-const bodyEl=el(‘div’,{style:{lineHeight:‘2.2’,fontSize:‘15px’,marginBottom:‘20px’}});
-let activeInput=null;
+// QuizBody 커스텀: locked 빈칸은 초록 고정 텍스트로 표시
+const studyBody = () => {
 let bi=0;
-
-parts.forEach(p=>{
-if(p.type===‘text’){bodyEl.appendChild(textWithBreaks(p.value));return;}
+return parts.map((p,i)=>{
+if(p.type===“text”) return h(“span”,{key:i},h(TextWithBreaks,{value:p.value}));
 const bIdx=bi++;
 
 ```
-if(phase==='result'){
-  const ok=(inputs[bIdx]||'').trim()===p.value.trim();
-  const span=el('div',{class:ok?'blank-result-ok':'blank-result-ng'});
-  span.appendChild(el('span',{class:'inp-val'},inputs[bIdx]||'(공백)'));
-  span.appendChild(el('span',{class:'ans'},p.value));
-  bodyEl.appendChild(span);
-  return;
-}
+  // 결과 화면
+  if(phase==="result"){
+    const ok=cor(bIdx);
+    return h("span",{key:i,style:{display:"inline-flex",flexDirection:"column",alignItems:"center",verticalAlign:"bottom",margin:"0 4px"}},
+      h("span",{style:{fontSize:11,color:ok?P.green:P.red,textDecoration:ok?"none":"line-through",fontWeight:700}},inputs[bIdx]||"(공백)"),
+      h("span",{style:{background:ok?P.green+"22":P.red+"22",border:`2px solid ${ok?P.green:P.red}`,borderRadius:6,padding:"0 8px",color:ok?P.green:P.red,fontWeight:800,minWidth:60,textAlign:"center",display:"inline-block"}},p.value)
+    );
+  }
 
-if(bIdx<cb){
-  bodyEl.appendChild(el('span',{class:'blank-filled'},inputs[bIdx]||'　'));
-  return;
-}
-if(bIdx===cb){
-  const sp=el('span',{class:'blank-wrap'});
-  const input=el('input',{class:'blank-input',value:inputs[bIdx]||'',
-    onInput:e=>{const n=[...state.inputs];n[cb]=e.target.value;state.inputs=n;
-      input.style.width=Math.max(60,(e.target.value.length+2)*10)+'px';},
-    onKeydown:e=>{if(e.key==='Enter')handleNext();}
-  });
-  input.style.width=Math.max(60,((inputs[bIdx]||'').length+2)*10)+'px';
-  sp.appendChild(input);
-  bodyEl.appendChild(sp);
-  activeInput=input;
-  return;
-}
-bodyEl.appendChild(el('span',{class:'blank-slot'},'　　'));
+  // locked (이미 맞춘 빈칸) → 초록 고정 표시
+  if(locked.has(bIdx)){
+    return h("span",{key:i,style:{background:P.green+"22",border:`2px solid ${P.green}`,borderRadius:6,padding:"0 8px",color:P.green,fontWeight:800,margin:"0 2px",display:"inline-block"}},p.value);
+  }
+
+  // 이미 지나간 빈칸 (파랑)
+  if(bIdx<cb){
+    return h("span",{key:i,style:{background:P.blue+"22",border:`2px solid ${P.blue}`,borderRadius:6,padding:"0 8px",color:P.blue,fontWeight:800,margin:"0 2px"}},inputs[bIdx]||"　");
+  }
+
+  // 현재 입력 빈칸
+  if(bIdx===cb){
+    return h("span",{key:i,style:{background:P.accent+"18",borderBottom:`3px solid ${P.accent}`,padding:"0 4px",borderRadius:"6px 6px 0 0"}},
+      h("input",{ref:inputRef,value:inputs[bIdx]||"",onChange:e=>hi(e.target.value),
+        onKeyDown:e=>e.key==="Enter"&&ne(),
+        style:{background:"none",border:"none",outline:"none",color:P.accent,fontFamily:"inherit",fontSize:15,width:Math.max(80,((inputs[bIdx]||"").length+2)*10),fontWeight:800}})
+    );
+  }
+
+  // 아직 안 된 빈칸
+  return h("span",{key:i,style:{display:"inline-block",background:"#e8d8c8",borderRadius:6,padding:"0 12px",margin:"0 2px",minWidth:60}},"　　");
+});
 ```
 
-});
+};
 
-qcard.appendChild(bodyEl);
-
-function handleNext(){
-if(phase===‘result’){
-const cor=blanks.filter((b,i)=>(state.inputs[i]||’’).trim()===b.value.trim()).length;
-const q=cor===blanks.length?2:cor>0?1:0;
-const updated=state.data.cards.map(c=>c.id===card.id?{…c,…getNextReview(c,q)}:c);
-persist({subjects:state.data.subjects,cards:updated});
-setState({idx:state.idx+1,phase:‘answering’,inputs:[],cb:0,deck:updated.filter(c=>c.subjectId===selSub&&c.chapterId===selCh)});
-return;
-}
-if(cb<blanks.length-1)setState({cb:cb+1});
-else setState({phase:‘result’});
-}
-
-// Footer
-const footer=el(‘div’,{class:‘flex’,style:{paddingTop:‘12px’,borderTop:‘1px dashed #f0c8a0’}});
-if(phase===‘answering’){
-footer.appendChild(el(‘span’,{style:{fontSize:‘13px’,color:’#9a7c6e’,fontWeight:‘700’}},`빈칸 ${cb+1} / ${blanks.length}`));
-footer.appendChild(btn(cb<blanks.length-1?‘다음 빈칸’:‘채점’,‘accent’,handleNext));
-} else {
-const cor=blanks.filter((_,i)=>(inputs[i]||’’).trim()===blanks[i]?.value.trim()).length;
-footer.appendChild(el(‘span’,{style:{fontWeight:‘800’}},
-[el(‘span’,{style:{color:’#5cb85c’,fontSize:‘18px’}},String(cor)),
-el(‘span’,{style:{color:’#9a7c6e’}},` / ${blanks.length} 정답`)]));
-footer.appendChild(btn(‘다음 문제’,‘accent’,handleNext));
-}
-qcard.appendChild(footer);
-wrap.appendChild(qcard);
-
-setTimeout(()=>activeInput&&activeInput.focus(),80);
-return wrap;
-}
-
-// ── Review ────────────────────────────────────────────────────────────────────
-function renderReview(){
-const due=state.data.cards.filter(isDue);
-const {idx,phase,inputs,cb}=state;
-
-if(due.length===0){
-return el(‘div’,{class:‘fade’,style:{textAlign:‘center’,padding:‘60px’}},[
-el(‘div’,{style:{fontFamily:”‘Gaegu’,cursive”,fontWeight:‘700’,fontSize:‘26px’,color:’#e07b6a’,marginBottom:‘8px’}},‘복습 완료!’),
-el(‘div’,{style:{color:’#9a7c6e’,marginBottom:‘6px’}},‘오늘 복습할 카드가 없습니다’),
-el(‘div’,{style:{fontSize:‘13px’,color:’#9a7c6e’,marginBottom:‘28px’}},‘망각곡선에 따라 다음 복습 일정이 자동 설정됩니다’),
-btn(‘홈으로’,‘accent’,()=>setState({view:‘home’})),
-]);
+return h(“div”,{style:{animation:“fadeIn .3s ease”}},
+h(“div”,{style:{display:“flex”,alignItems:“center”,gap:10,marginBottom:6}},
+h(“span”,{style:{fontSize:12,color:P.muted,fontWeight:700}},`${sn} · ${cn}`),
+h(“div”,{style:{flex:1,height:10,background:”#e8d8c8”,borderRadius:10,overflow:“hidden”}},
+h(“div”,{style:{width:`${progressPct}%`,height:“100%”,background:P.green,borderRadius:10,transition:“width .4s”}})
+),
+h(“span”,{style:{fontSize:12,color:P.green,fontWeight:800}},`${totalDone}/${base.length} 완료`)
+),
+locked.size>0&&h(“div”,{style:{marginBottom:8,padding:“4px 14px”,background:P.green+“15”,border:`1px solid ${P.green}`,borderRadius:10,fontSize:12,color:P.green,fontWeight:700,display:“inline-block”}},`초록 빈칸은 이미 맞췄습니다 · 남은 빈칸 ${unlockedCount}개`),
+h(“div”,{style:{border:`2px solid ${locked.size>0?P.red+"66":P.borderSoft}`,borderRadius:18,padding:24,background:P.bg,boxShadow:“0 4px 16px rgba(0,0,0,0.08)”}},
+h(“div”,{style:{fontWeight:800,fontSize:20,marginBottom:10,color:P.text}},card.title),
+card.hint&&h(“div”,{style:{fontSize:12,color:P.accent,marginBottom:14,padding:“6px 14px”,background:P.accent+“15”,border:`2px dashed ${P.accentDim}`,borderRadius:10,display:“inline-block”,fontWeight:700}},`힌트: ${card.hint}`),
+h(“div”,{style:{lineHeight:2.2,fontSize:15,marginBottom:20}},…studyBody()),
+phase===“answering”&&h(“div”,{style:{display:“flex”,alignItems:“center”,gap:12,paddingTop:12,borderTop:`1px dashed ${P.border}`}},
+h(“span”,{style:{fontSize:13,color:P.muted,fontWeight:700}},`빈칸 ${blanks.filter((_,i)=>!locked.has(i)).indexOf(blanks[cb])+1} / ${unlockedCount}`),
+h(Btn,{style:{background:P.green,color:”#fff”,border:`2px solid ${P.green}`},onClick:ne},nextUnlocked(cb+1)<blanks.length?“다음 빈칸”:“채점”)
+),
+phase===“result”&&h(“div”,{style:{paddingTop:12,borderTop:`1px dashed ${P.border}`}},
+h(“div”,{style:{display:“flex”,alignItems:“center”,gap:16,marginBottom:8}},
+h(“div”,{style:{flex:1,fontWeight:800}},
+h(“span”,{style:{color:blanks.every((*,i)=>cor(i))?P.green:P.red,fontSize:18}},blanks.filter((*,i)=>cor(i)).length),
+h(“span”,{style:{color:P.muted}},` / ${blanks.length} 정답`)
+),
+blanks.every((*,i)=>cor(i))
+?h(Btn,{style:{background:P.green,color:”#fff”,border:`2px solid ${P.green}`},onClick:ne},“다음 카드”)
+:h(Btn,{style:{background:P.red,color:”#fff”,border:`2px solid ${P.red}`},onClick:ne},“다시 풀기”)
+),
+!blanks.every((*,i)=>cor(i))&&h(“div”,{style:{fontSize:12,color:P.red,fontWeight:700}},“전부 맞혀야 다음 카드로 넘어갑니다”)
+)
+)
+);
 }
 
-if(idx>=due.length){
-return el(‘div’,{class:‘fade’,style:{textAlign:‘center’,padding:‘60px’}},[
-el(‘div’,{style:{fontFamily:”‘Gaegu’,cursive”,fontWeight:‘700’,fontSize:‘26px’,color:’#e07b6a’,marginBottom:‘8px’}},‘오늘 복습 완료!’),
-el(‘div’,{style:{color:’#9a7c6e’,marginBottom:‘24px’}},`${due.length}개 카드를 복습했습니다`),
-btn(‘홈으로’,‘accent’,()=>setState({view:‘home’,idx:0,phase:‘answering’,inputs:[],cb:0})),
-]);
-}
+// ── TestView (랜덤 테스트 모드) ───────────────────────────────────────────────
+// 과목/챕터 선택 → 랜덤 순서로 한 번씩 → 최종 점수
+function TestView({cards, subjects, selSub, setSelSub, selCh, setSelCh, setView}) {
+const [started, setStarted] = useState(false);
+const [deck, setDeck] = useState([]);
+const [idx, setIdx] = useState(0);
+const [phase, setPhase] = useState(“answering”);
+const [inputs, setInputs] = useState([]);
+const [cb, setCb] = useState(0);
+const [results, setResults] = useState([]); // [{card, correct, total}]
+const inputRef = useRef(null);
 
-const card=due[idx];
-const parts=parseBlanks(card.body);
-const blanks=parts.filter(p=>p.type===‘blank’);
-const sn=getSN(card),cn=getCN(card);
+// 과목 선택 시 챕터 초기화
+const allChapters = subjects.find(s=>s.id===selSub)?.chapters||[];
 
-const wrap=el(‘div’,{class:‘fade’});
-
-const prog=el(‘div’,{class:‘flex’,style:{marginBottom:‘16px’}});
-prog.appendChild(el(‘span’,{style:{fontSize:‘12px’,color:’#9a7c6e’,fontWeight:‘700’}},‘복습’));
-const bar=el(‘div’,{class:‘progress-bar’});
-bar.appendChild(el(‘div’,{class:‘progress-fill’,style:{width:`${(idx/due.length)*100}%`,background:’#5b9bd5’}}));
-prog.appendChild(bar);
-prog.appendChild(el(‘span’,{style:{fontSize:‘12px’,color:’#9a7c6e’,fontWeight:‘700’}},`${idx+1} / ${due.length}`));
-wrap.appendChild(prog);
-
-const qcard=el(‘div’,{class:‘quiz-card’});
-const titleRow=el(‘div’,{class:‘flex’,style:{marginBottom:‘10px’,justifyContent:‘space-between’}});
-titleRow.appendChild(el(‘div’,{style:{fontWeight:‘800’,fontSize:‘20px’,color:’#3d2b1f’}},card.title));
-titleRow.appendChild(el(‘span’,{class:‘tag-sm’},`${sn} · ${cn}`));
-qcard.appendChild(titleRow);
-if(card.hint)qcard.appendChild(el(‘div’,{class:‘hint-box’},`힌트: ${card.hint}`));
-
-const bodyEl=el(‘div’,{style:{lineHeight:‘2.2’,fontSize:‘15px’,marginBottom:‘20px’}});
-let activeInput=null;let bi=0;
-
-parts.forEach(p=>{
-if(p.type===‘text’){bodyEl.appendChild(textWithBreaks(p.value));return;}
-const bIdx=bi++;
-if(phase===‘result’){
-const ok=(inputs[bIdx]||’’).trim()===p.value.trim();
-const span=el(‘div’,{class:ok?‘blank-result-ok’:‘blank-result-ng’});
-span.appendChild(el(‘span’,{class:‘inp-val’},inputs[bIdx]||’(공백)’));
-span.appendChild(el(‘span’,{class:‘ans’},p.value));
-bodyEl.appendChild(span);return;
-}
-if(bIdx<cb){bodyEl.appendChild(el(‘span’,{class:‘blank-filled’},inputs[bIdx]||’　‘));return;}
-if(bIdx===cb){
-const sp=el(‘span’,{class:‘blank-wrap’});
-const input=el(‘input’,{class:‘blank-input’,value:inputs[bIdx]||’’,
-onInput:e=>{const n=[…state.inputs];n[cb]=e.target.value;state.inputs=n;input.style.width=Math.max(60,(e.target.value.length+2)*10)+‘px’;},
-onKeydown:e=>{if(e.key===‘Enter’)handleNext();}
-});
-input.style.width=Math.max(60,((inputs[bIdx]||’’).length+2)*10)+‘px’;
-sp.appendChild(input);bodyEl.appendChild(sp);activeInput=input;return;
-}
-bodyEl.appendChild(el(‘span’,{class:‘blank-slot’},’　　’));
-});
-
-qcard.appendChild(bodyEl);
-
-function handleNext(){
-if(phase===‘result’){
-const cor=blanks.filter((_,i)=>(state.inputs[i]||’’).trim()===blanks[i]?.value.trim()).length;
-const q=cor===blanks.length?2:cor>0?1:0;
-const updated=state.data.cards.map(c=>c.id===card.id?{…c,…getNextReview(c,q)}:c);
-persist({subjects:state.data.subjects,cards:updated});
-const newDue=updated.filter(isDue);
-setState({idx:state.idx+1,phase:‘answering’,inputs:[],cb:0});
-return;
-}
-if(cb<blanks.length-1)setState({cb:cb+1});
-else setState({phase:‘result’});
-}
-
-const footer=el(‘div’,{class:‘flex’,style:{paddingTop:‘12px’,borderTop:‘1px dashed #f0c8a0’}});
-if(phase===‘answering’){
-footer.appendChild(el(‘span’,{style:{fontSize:‘13px’,color:’#9a7c6e’,fontWeight:‘700’}},`빈칸 ${cb+1} / ${blanks.length}`));
-footer.appendChild(btn(cb<blanks.length-1?‘다음 빈칸’:‘채점’,‘accent’,handleNext));
-} else {
-const cor=blanks.filter((_,i)=>(inputs[i]||’’).trim()===blanks[i]?.value.trim()).length;
-footer.appendChild(el(‘div’,{style:{fontWeight:‘800’}},
-[el(‘span’,{style:{color:’#5cb85c’,fontSize:‘18px’}},String(cor)),
-el(‘span’,{style:{color:’#9a7c6e’}},` / ${blanks.length} 정답`)]));
-footer.appendChild(el(‘span’,{style:{fontSize:‘12px’,color:’#9a7c6e’,fontWeight:‘700’}},`다음 복습: ${card.interval||1}일 후`));
-footer.appendChild(btn(‘다음’,‘accent’,handleNext));
-}
-qcard.appendChild(footer);
-wrap.appendChild(qcard);
-wrap.appendChild(el(‘div’,{class:‘sm2-box’},‘SM-2 망각곡선 — 정답률에 따라 복습 간격이 자동 조정됩니다’));
-
-setTimeout(()=>activeInput&&activeInput.focus(),80);
-return wrap;
-}
-
-// ── Cards View ────────────────────────────────────────────────────────────────
-function renderCards(){
-const {data,fs,fc,q,editCard,expanded}=state;
-const {subjects,cards}=data;
-const chapters=subjects.find(s=>s.id===fs)?.chapters||[];
-
-const filtered=cards.filter(c=>{
-if(fs&&c.subjectId!==fs)return false;
-if(fc&&c.chapterId!==fc)return false;
-if(q){const ql=q.toLowerCase();return c.title.toLowerCase().includes(ql)||c.body.toLowerCase().includes(ql);}
+const startTest = () => {
+const filtered = cards.filter(c=>{
+if (selSub && c.subjectId!==selSub) return false;
+if (selCh && c.chapterId!==selCh) return false;
 return true;
 });
+if (filtered.length===0){alert(“선택한 범위에 카드가 없습니다.”);return;}
+setDeck(shuffle(filtered));
+setIdx(0); setPhase(“answering”); setInputs([]); setCb(0); setResults([]);
+setStarted(true);
+};
 
-const wrap=el(‘div’,{class:‘fade’});
+useEffect(()=>{setInputs([]);setCb(0);setPhase(“answering”)},[idx]);
+useEffect(()=>{if(phase===“answering”) setTimeout(()=>inputRef.current?.focus(),80)},[phase,cb]);
 
-// Edit modal
-if(editCard){
-wrap.appendChild(renderEditModal(editCard,subjects,cards));
+// 선택 화면
+if (!started) {
+return h(“div”,{style:{animation:“fadeIn .3s ease”}},
+h(Section,{label:“테스트 범위 선택”},
+h(“div”,{style:{background:P.bg,border:`2px solid ${P.purple}33`,borderRadius:16,padding:24,boxShadow:“0 2px 8px rgba(0,0,0,0.06)”}},
+h(“div”,{style:{display:“grid”,gridTemplateColumns:“1fr 1fr”,gap:12,marginBottom:20}},
+h(“div”,null,
+h(Label,null,“과목”),
+h(“select”,{value:selSub||””,onChange:e=>{setSelSub(e.target.value);setSelCh(null)},style:IS},
+h(“option”,{value:””},“전체 과목”),
+…subjects.map(s=>h(“option”,{key:s.id,value:s.id},s.name))
+)
+),
+h(“div”,null,
+h(Label,null,“챕터”),
+h(“select”,{value:selCh||””,onChange:e=>setSelCh(e.target.value),style:IS,disabled:!selSub},
+h(“option”,{value:””},“전체 챕터”),
+…allChapters.map(c=>h(“option”,{key:c.id,value:c.id},c.name))
+)
+)
+),
+h(“div”,{style:{marginBottom:16,padding:“12px 16px”,background:P.purple+“11”,borderRadius:12,border:`1px dashed ${P.purple}`,fontSize:13,color:P.muted,fontWeight:700}},
+`선택된 카드: ${cards.filter(c=>{if(selSub&&c.subjectId!==selSub)return false;if(selCh&&c.chapterId!==selCh)return false;return true;}).length}개 (랜덤 순서)`
+),
+h(Btn,{style:{background:P.purple,color:”#fff”,border:`2px solid ${P.purple}`,fontSize:15,padding:“10px 32px”},onClick:startTest},“테스트 시작”)
+)
+)
+);
 }
 
-const sec=el(‘div’,{class:‘section’});
-sec.appendChild(el(‘div’,{class:‘section-label’},[el(‘div’,{class:‘section-bar’}),el(‘div’,{class:‘section-title’},`카드 목록 (${filtered.length}개)`)]));
-
-// Filters
-const filterGrid=el(‘div’,{class:‘grid3’,style:{marginBottom:‘16px’}});
-
-const subSel=el(‘select’,{class:‘inp’,style:{marginBottom:‘0’},onChange:e=>setState({fs:e.target.value,fc:’’})});
-subSel.appendChild(el(‘option’,{value:’’},‘전체’));
-subjects.forEach(s=>{const o=el(‘option’,{value:s.id},s.name);if(s.id===fs)o.selected=true;subSel.appendChild(o);});
-
-const chSel=el(‘select’,{class:‘inp’,style:{marginBottom:‘0’},onChange:e=>setState({fc:e.target.value})});
-chSel.appendChild(el(‘option’,{value:’’},‘전체’));
-if(fs){chapters.forEach(c=>{const o=el(‘option’,{value:c.id},c.name);if(c.id===fc)o.selected=true;chSel.appendChild(o);});}
-else chSel.setAttribute(‘disabled’,‘disabled’);
-
-const searchInp=el(‘input’,{class:‘inp’,style:{marginBottom:‘0’},placeholder:‘제목 또는 본문 검색…’,value:q,onInput:e=>setState({q:e.target.value})});
-
-const d1=el(‘div’);d1.appendChild(lbl(‘과목’));d1.appendChild(subSel);
-const d2=el(‘div’);d2.appendChild(lbl(‘챕터’));d2.appendChild(chSel);
-const d3=el(‘div’);d3.appendChild(lbl(‘검색’));d3.appendChild(searchInp);
-filterGrid.appendChild(d1);filterGrid.appendChild(d2);filterGrid.appendChild(d3);
-sec.appendChild(filterGrid);
-
-if(filtered.length===0)sec.appendChild(el(‘div’,{class:‘empty’},‘카드가 없습니다’));
-
-filtered.forEach(card=>{
-const parts=parseBlanks(card.body);
-const bc=parts.filter(p=>p.type===‘blank’).length;
-const isExp=expanded===card.id;
-const due=isDue(card);
+// 완료 화면
+if (idx>=deck.length) {
+const total = results.reduce((s,r)=>s+r.total,0);
+const correct = results.reduce((s,r)=>s+r.correct,0);
+const pct = total>0 ? Math.round(correct/total*100) : 0;
+const wrongCards = results.filter(r=>r.correct<r.total);
 
 ```
-const cardEl=el('div',{style:{border:`2px solid ${isExp?'#e07b6a':'#f0c8a0'}`,borderRadius:'14px',marginBottom:'10px',overflow:'hidden',transition:'border-color .2s',boxShadow:'0 2px 8px rgba(0,0,0,.05)'}});
-
-// Header row
-const hdr=el('div',{style:{display:'flex',alignItems:'center',padding:'11px 16px',background:isExp?'rgba(224,123,106,.06)':'#fff8f0',gap:'10px',flexWrap:'wrap'}});
-const info=el('div',{style:{cursor:'pointer',flex:'1',minWidth:'0'},onClick:()=>setState({expanded:isExp?null:card.id})});
-info.appendChild(el('div',{style:{fontWeight:'800',fontSize:'14px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},card.title));
-const sub2=el('div',{style:{fontSize:'11px',color:'#9a7c6e',marginTop:'3px',fontWeight:'700'}},`${getSN(card)} · ${getCN(card)} · 빈칸 ${bc}개`);
-if(due)sub2.appendChild(el('span',{class:'due-tag'},'복습 대기'));
-info.appendChild(sub2);
-hdr.appendChild(info);
-hdr.appendChild(btn('수정','small',()=>setState({editCard:card})));
-hdr.appendChild(btn('삭제','small',()=>{if(!confirm('삭제할까요?'))return;persist({subjects,cards:cards.filter(c=>c.id!==card.id)});}));
-hdr.appendChild(el('span',{style:{color:'#9a7c6e',cursor:'pointer',fontSize:'13px'},onClick:()=>setState({expanded:isExp?null:card.id})},isExp?'▲':'▼'));
-cardEl.appendChild(hdr);
-
-if(isExp){
-  const body=el('div',{style:{padding:'16px 18px',background:'#fffef5'}});
-  if(card.hint)body.appendChild(el('div',{class:'hint-box'},`힌트: ${card.hint}`));
-  const bodyText=el('div',{style:{lineHeight:'2',fontSize:'14px'}});
-  parts.forEach(p=>{
-    if(p.type==='blank')bodyText.appendChild(el('span',{style:{display:'inline-block',background:'rgba(224,123,106,.15)',border:'2px solid #e07b6a',borderRadius:'6px',padding:'0 8px',color:'#e07b6a',fontWeight:'800',margin:'0 3px'}},p.value));
-    else bodyText.appendChild(textWithBreaks(p.value));
-  });
-  body.appendChild(bodyText);
-  if(card.nextReview)body.appendChild(el('div',{style:{marginTop:'10px',fontSize:'11px',color:'#9a7c6e',fontWeight:'700'}},`다음 복습: ${new Date(card.nextReview).toLocaleDateString('ko-KR')} · 반복 ${card.reps||0}회`));
-  cardEl.appendChild(body);
-}
-
-sec.appendChild(cardEl);
+return h("div",{style:{animation:"fadeIn .4s ease"}},
+  h("div",{style:{textAlign:"center",marginBottom:24}},
+    h("div",{style:{fontFamily:"'Gaegu',cursive",fontSize:32,color:P.purple,marginBottom:8,fontWeight:700}},"테스트 완료!"),
+    h("div",{style:{fontSize:48,fontWeight:800,color:pct>=80?P.green:pct>=60?P.yellow:P.red,marginBottom:4}},`${pct}점`),
+    h("div",{style:{color:P.muted,fontSize:14}},`${correct} / ${total} 빈칸 정답 · ${deck.length}문제`)
+  ),
+  // 오답 카드 목록
+  wrongCards.length>0&&h("div",{style:{marginBottom:20}},
+    h("div",{style:{fontSize:13,fontWeight:800,color:P.red,marginBottom:10}},`오답 카드 (${wrongCards.length}개)`),
+    ...wrongCards.map((r,i)=>h("div",{key:i,style:{padding:"10px 14px",background:P.red+"0a",border:`1px solid ${P.red}44`,borderRadius:12,marginBottom:6}},
+      h("div",{style:{fontWeight:700,fontSize:13,marginBottom:4}},r.card.title),
+      h("div",{style:{fontSize:12,color:P.muted}},`${r.correct}/${r.total} 정답`)
+    ))
+  ),
+  h("div",{style:{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap"}},
+    h(Btn,{style:{background:P.purple,color:"#fff",border:`2px solid ${P.purple}`},onClick:()=>{setStarted(false)}},"다시 설정"),
+    h(Btn,{style:{background:P.green,color:"#fff",border:`2px solid ${P.green}`},onClick:startTest},"같은 범위 재시험"),
+    h(Btn,{onClick:()=>setView("home")},"홈으로")
+  )
+);
 ```
 
-});
-
-wrap.appendChild(sec);
-return wrap;
 }
 
-function renderEditModal(card,subjects,cards){
-let t=card.title,h=card.hint||’’,b=card.body,sid=card.subjectId,cid=card.chapterId;
+const card = deck[idx];
+const parts = parseBlanks(card.body);
+const blanks = parts.filter(p=>p.type===“blank”);
+const sn=subjects.find(s=>s.id===card.subjectId)?.name||””;
+const cn=subjects.find(s=>s.id===card.subjectId)?.chapters?.find(c=>c.id===card.chapterId)?.name||””;
+const hi=val=>{const n=[…inputs];n[cb]=val;setInputs(n)};
+
+const ne=()=>{
+if (phase===“result”) {
+const correct=blanks.filter((_,i)=>(inputs[i]||””).trim()===blanks[i].value.trim()).length;
+setResults(r=>[…r,{card,correct,total:blanks.length}]);
+setIdx(i=>i+1);
+return;
+}
+if (cb<blanks.length-1) setCb(b=>b+1); else setPhase(“result”);
+};
+
+const cor=i=>(inputs[i]||””).trim()===blanks[i]?.value.trim();
+
+return h(“div”,{style:{animation:“fadeIn .3s ease”}},
+h(“div”,{style:{display:“flex”,alignItems:“center”,gap:10,marginBottom:12}},
+h(“span”,{style:{fontSize:12,color:P.muted,fontWeight:700}},`${sn} · ${cn}`),
+h(“div”,{style:{flex:1,height:10,background:”#e8d8c8”,borderRadius:10,overflow:“hidden”}},
+h(“div”,{style:{width:`${(idx/deck.length)*100}%`,height:“100%”,background:P.purple,borderRadius:10,transition:“width .4s”}})
+),
+h(“span”,{style:{fontSize:12,color:P.purple,fontWeight:800}},`${idx+1} / ${deck.length}`)
+),
+h(“div”,{style:{border:`2px solid ${P.purple}44`,borderRadius:18,padding:24,background:P.bg,boxShadow:“0 4px 16px rgba(0,0,0,0.08)”}},
+h(“div”,{style:{fontWeight:800,fontSize:20,marginBottom:10,color:P.text}},card.title),
+card.hint&&h(“div”,{style:{fontSize:12,color:P.accent,marginBottom:14,padding:“6px 14px”,background:P.accent+“15”,border:`2px dashed ${P.accentDim}`,borderRadius:10,display:“inline-block”,fontWeight:700}},`힌트: ${card.hint}`),
+h(“div”,{style:{lineHeight:2.2,fontSize:15,marginBottom:20}},
+…QuizBody({parts,phase,inputs,currentBlank:cb,inputRef,handleInput:hi,handleEnter:ne})
+),
+phase===“answering”&&h(“div”,{style:{display:“flex”,alignItems:“center”,gap:12,paddingTop:12,borderTop:`1px dashed ${P.border}`}},
+h(“span”,{style:{fontSize:13,color:P.muted,fontWeight:700}},`빈칸 ${cb+1} / ${blanks.length}`),
+h(Btn,{style:{background:P.purple,color:”#fff”,border:`2px solid ${P.purple}`},onClick:ne},cb<blanks.length-1?“다음 빈칸”:“채점”)
+),
+phase===“result”&&h(“div”,{style:{display:“flex”,alignItems:“center”,gap:16,paddingTop:12,borderTop:`1px dashed ${P.border}`}},
+h(“div”,{style:{flex:1,fontWeight:800}},
+h(“span”,{style:{color:blanks.filter((*,i)=>cor(i)).length===blanks.length?P.green:P.red,fontSize:18}},blanks.filter((*,i)=>cor(i)).length),
+h(“span”,{style:{color:P.muted}},` / ${blanks.length} 정답`)
+),
+h(Btn,{style:{background:P.purple,color:”#fff”,border:`2px solid ${P.purple}`},onClick:ne},“다음 문제”)
+)
+)
+);
+}
+
+// ── ReviewView (테스트 기반 복습) ─────────────────────────────────────────────
+function ReviewView({cards, persist, subjects, setView}) {
+const due = cards.filter(isDue);
+const [started, setStarted] = useState(false);
+const [deck, setDeck] = useState([]);
+const [idx, setIdx] = useState(0);
+const [phase, setPhase] = useState(“answering”);
+const [inputs, setInputs] = useState([]);
+const [cb, setCb] = useState(0);
+const [results, setResults] = useState([]);
+const inputRef = useRef(null);
+
+useEffect(()=>{setInputs([]);setCb(0);setPhase(“answering”)},[idx]);
+useEffect(()=>{if(phase===“answering”) setTimeout(()=>inputRef.current?.focus(),80)},[phase,cb]);
+
+// 시작 전 화면
+if (!started) {
+if (due.length===0) return h(“div”,{style:{textAlign:“center”,padding:60}},
+h(“div”,{style:{fontFamily:”‘Gaegu’,cursive”,fontWeight:700,fontSize:26,color:P.accent,marginBottom:8}},“복습 완료!”),
+h(“div”,{style:{color:P.muted,marginBottom:6}},“오늘 복습할 카드가 없습니다”),
+h(“div”,{style:{fontSize:13,color:P.muted,marginBottom:28}},“망각곡선에 따라 다음 복습 일정이 자동 설정됩니다”),
+h(Btn,{accent:true,onClick:()=>setView(“home”)},“홈으로”)
+);
+return h(“div”,{style:{animation:“fadeIn .3s ease”}},
+h(Section,{label:“오늘의 복습”},
+h(“div”,{style:{background:P.bg,border:`2px solid ${P.border}`,borderRadius:16,padding:24,boxShadow:“0 2px 8px rgba(0,0,0,.06)”}},
+h(“div”,{style:{marginBottom:16,padding:“12px 16px”,background:P.yellow+“33”,borderRadius:12,border:`1px dashed ${P.yellow}`,fontSize:13,color:P.text,fontWeight:700}},
+`복습 대기 카드: ${due.length}개 (랜덤 순서로 출제)`
+),
+h(“div”,{style:{fontSize:13,color:P.muted,marginBottom:20}},
+“정답률에 따라 다음 복습 일정이 자동 조정됩니다 (SM-2)”
+),
+h(Btn,{accent:true,style:{fontSize:15,padding:“10px 32px”},onClick:()=>{
+setDeck(shuffle(due));
+setIdx(0);setResults([]);setStarted(true);
+}},“복습 시작”)
+)
+)
+);
+}
+
+// 완료 화면
+if (idx >= deck.length) {
+const total = results.reduce((s,r)=>s+r.total,0);
+const correct = results.reduce((s,r)=>s+r.correct,0);
+const pct = total>0 ? Math.round(correct/total*100) : 0;
+const wrongCards = results.filter(r=>r.correct<r.total);
+return h(“div”,{style:{animation:“fadeIn .4s ease”}},
+h(“div”,{style:{textAlign:“center”,marginBottom:24}},
+h(“div”,{style:{fontFamily:”‘Gaegu’,cursive”,fontSize:32,color:P.accent,marginBottom:8,fontWeight:700}},“복습 완료!”),
+h(“div”,{style:{fontSize:48,fontWeight:800,color:pct>=80?P.green:pct>=60?P.yellow:P.red,marginBottom:4}},`${pct}점`),
+h(“div”,{style:{color:P.muted,fontSize:14}},`${correct} / ${total} 빈칸 정답 · ${deck.length}문제`)
+),
+wrongCards.length>0&&h(“div”,{style:{marginBottom:20}},
+h(“div”,{style:{fontSize:13,fontWeight:800,color:P.red,marginBottom:10}},`오답 카드 (${wrongCards.length}개)`),
+…wrongCards.map((r,i)=>h(“div”,{key:i,style:{padding:“10px 14px”,background:P.red+“0a”,border:`1px solid ${P.red}44`,borderRadius:12,marginBottom:6}},
+h(“div”,{style:{fontWeight:700,fontSize:13,marginBottom:4}},r.card.title),
+h(“div”,{style:{fontSize:12,color:P.muted}},`${r.correct}/${r.total} 정답`)
+))
+),
+h(“div”,{style:{display:“flex”,gap:10,justifyContent:“center”,flexWrap:“wrap”}},
+h(Btn,{accent:true,onClick:()=>{setDeck(shuffle(due));setIdx(0);setResults([]);}},“다시 복습”),
+h(Btn,{onClick:()=>setView(“home”)},“홈으로”)
+)
+);
+}
+
+const card = deck[idx];
+const parts = parseBlanks(card.body);
+const blanks = parts.filter(p=>p.type===“blank”);
+const sn=subjects.find(s=>s.id===card.subjectId)?.name||””;
+const cn=subjects.find(s=>s.id===card.subjectId)?.chapters?.find(c=>c.id===card.chapterId)?.name||””;
+const hi=val=>{const n=[…inputs];n[cb]=val;setInputs(n)};
+const cor=i=>(inputs[i]||””).trim()===blanks[i]?.value.trim();
+
+const ne=()=>{
+if (phase===“result”) {
+const correctCount = blanks.filter((_,i)=>cor(i)).length;
+const quality = correctCount===blanks.length?2:correctCount>0?1:0;
+persist({subjects,cards:cards.map(c=>c.id===card.id?{…c,…getNextReview(c,quality)}:c)});
+setResults(r=>[…r,{card,correct:correctCount,total:blanks.length}]);
+setIdx(i=>i+1);
+return;
+}
+if (cb<blanks.length-1) setCb(b=>b+1); else setPhase(“result”);
+};
+
+return h(“div”,{style:{animation:“fadeIn .3s ease”}},
+h(“div”,{style:{display:“flex”,alignItems:“center”,gap:10,marginBottom:16}},
+h(“span”,{style:{fontSize:12,color:P.muted,fontWeight:700}},“복습”),
+h(“div”,{style:{flex:1,height:10,background:”#e8d8c8”,borderRadius:10,overflow:“hidden”}},
+h(“div”,{style:{width:`${(idx/deck.length)*100}%`,height:“100%”,background:P.accent,borderRadius:10,transition:“width .4s”}})
+),
+h(“span”,{style:{fontSize:12,color:P.muted,fontWeight:700}},`${idx+1} / ${deck.length}`)
+),
+h(“div”,{style:{border:`2px solid ${P.border}`,borderRadius:18,padding:24,background:P.bg,boxShadow:“0 4px 16px rgba(0,0,0,0.08)”}},
+h(“div”,{style:{display:“flex”,justifyContent:“space-between”,alignItems:“flex-start”,marginBottom:10,flexWrap:“wrap”,gap:8}},
+h(“div”,{style:{fontWeight:800,fontSize:20,color:P.text}},card.title),
+h(“span”,{style:{fontSize:11,color:P.muted,background:P.surfaceAlt,padding:“3px 10px”,borderRadius:10,fontWeight:700,border:`1px solid ${P.borderSoft}`}},`${sn} · ${cn}`)
+),
+card.hint&&h(“div”,{style:{fontSize:12,color:P.accent,marginBottom:14,padding:“6px 14px”,background:P.accent+“15”,border:`2px dashed ${P.accentDim}`,borderRadius:10,display:“inline-block”,fontWeight:700}},`힌트: ${card.hint}`),
+h(“div”,{style:{lineHeight:2.2,fontSize:15,marginBottom:20}},
+…QuizBody({parts,phase,inputs,currentBlank:cb,inputRef,handleInput:hi,handleEnter:ne})
+),
+phase===“answering”&&h(“div”,{style:{display:“flex”,gap:12,alignItems:“center”,paddingTop:12,borderTop:`1px dashed ${P.border}`}},
+h(“span”,{style:{fontSize:13,color:P.muted,fontWeight:700}},`빈칸 ${cb+1} / ${blanks.length}`),
+h(Btn,{accent:true,onClick:ne},cb<blanks.length-1?“다음 빈칸”:“채점”)
+),
+phase===“result”&&h(“div”,{style:{display:“flex”,alignItems:“center”,gap:16,paddingTop:12,borderTop:`1px dashed ${P.border}`}},
+h(“div”,{style:{fontWeight:800}},
+h(“span”,{style:{color:blanks.filter((*,i)=>cor(i)).length===blanks.length?P.green:P.red,fontSize:18}},blanks.filter((*,i)=>cor(i)).length),
+h(“span”,{style:{color:P.muted}},` / ${blanks.length} 정답`)
+),
+h(“div”,{style:{fontSize:12,color:P.muted,fontWeight:700}},`다음 복습: ${card.interval||1}일 후`),
+h(Btn,{accent:true,onClick:ne},“다음”)
+)
+),
+h(“div”,{style:{marginTop:14,padding:“12px 18px”,background:P.surfaceAlt,borderRadius:12,border:`2px solid ${P.borderSoft}`,fontSize:12,color:P.muted,fontWeight:700}},
+“SM-2 망각곡선 — 정답률에 따라 복습 간격이 자동 조정됩니다”
+)
+);
+}
+
+// ── EditModal ─────────────────────────────────────────────────────────────────
+function EditModal({card, subjects, onSave, onClose}) {
+const [title,setTitle]=useState(card.title); const [hint,setHint]=useState(card.hint||””);
+const [body,setBody]=useState(card.body); const [sid,setSid]=useState(card.subjectId); const [cid,setCid]=useState(card.chapterId);
+const textRef=useRef(null);
 const chapters=subjects.find(s=>s.id===sid)?.chapters||[];
-
-const bg=el(‘div’,{class:‘modal-bg’,onClick:e=>{if(e.target===bg)setState({editCard:null});}});
-const box=el(‘div’,{class:‘modal-box’});
-
-// Title bar
-const tb=el(‘div’,{class:‘flex’,style:{marginBottom:‘20px’,justifyContent:‘space-between’}});
-tb.appendChild(el(‘div’,{style:{fontFamily:”‘Gaegu’,cursive”,fontWeight:‘700’,fontSize:‘22px’,color:’#e07b6a’}},‘카드 수정’));
-tb.appendChild(btn(‘X’,‘small’,()=>setState({editCard:null})));
-box.appendChild(tb);
-
-const grid=el(‘div’,{class:‘grid2’,style:{marginBottom:‘14px’}});
-const subSel=el(‘select’,{class:‘inp’,onChange:e=>{sid=e.target.value;cid=’’;}});
-subjects.forEach(s=>{const o=el(‘option’,{value:s.id},s.name);if(s.id===sid)o.selected=true;subSel.appendChild(o);});
-const chSel=el(‘select’,{class:‘inp’,onChange:e=>cid=e.target.value});
-chapters.forEach(c=>{const o=el(‘option’,{value:c.id},c.name);if(c.id===cid)o.selected=true;chSel.appendChild(o);});
-const d1=el(‘div’);d1.appendChild(lbl(‘과목’));d1.appendChild(subSel);
-const d2=el(‘div’);d2.appendChild(lbl(‘챕터’));d2.appendChild(chSel);
-grid.appendChild(d1);grid.appendChild(d2);box.appendChild(grid);
-
-box.appendChild(lbl(‘제목’));
-const tInp=el(‘input’,{class:‘inp’,value:t,style:{marginBottom:‘10px’},onInput:e=>t=e.target.value});
-box.appendChild(tInp);
-box.appendChild(lbl(‘힌트 (선택)’));
-const hInp=el(‘input’,{class:‘inp’,value:h,placeholder:‘힌트…’,style:{marginBottom:‘10px’},onInput:e=>h=e.target.value});
-box.appendChild(hInp);
-box.appendChild(lbl(`본문`));
-const ta=el(‘textarea’,{class:‘inp’,rows:‘8’,onInput:e=>b=e.target.value});
-ta.value=b;box.appendChild(ta);
-
-const wrapBtn=btn(‘선택 → [[빈칸]]’,’’,()=>{
-const s=ta.selectionStart,e2=ta.selectionEnd;if(s===e2)return;
-const next=ta.value.slice(0,s)+`[[${ta.value.slice(s,e2)}]]`+ta.value.slice(e2);
-ta.value=next;b=next;ta.focus();ta.setSelectionRange(s+2,e2+2);
-});
-const saveBtn=btn(‘저장’,‘accent’,()=>{
-if(!t.trim()||!b.trim()){alert(‘제목과 본문을 입력하세요.’);return;}
-if(parseBlanks(b).filter(p=>p.type===‘blank’).length===0){alert(’[[빈칸]]을 하나 이상 지정하세요.’);return;}
-persist({subjects,cards:cards.map(c=>c.id===card.id?{…c,title:t.trim(),hint:h.trim(),body:b.trim(),subjectId:sid,chapterId:cid}:c)});
-setState({editCard:null});
-});
-box.appendChild(el(‘div’,{class:‘flex’,style:{marginTop:‘12px’,justifyContent:‘flex-end’}},[wrapBtn,btn(‘취소’,’’,()=>setState({editCard:null})),saveBtn]));
-
-bg.appendChild(box);
-return bg;
+const wrap=()=>{const ta=textRef.current;if(!ta)return;const{selectionStart:s,selectionEnd:e}=ta;if(s===e)return;setBody(body.slice(0,s)+`[[${body.slice(s,e)}]]`+body.slice(e));setTimeout(()=>{ta.focus();ta.setSelectionRange(s+2,e+2)},0)};
+const save=()=>{if(!title.trim()||!body.trim()){alert(“제목과 본문을 입력하세요.”);return;}if(parseBlanks(body).filter(p=>p.type===“blank”).length===0){alert(”[[빈칸]]을 하나 이상 지정하세요.”);return;}onSave({…card,title:title.trim(),hint:hint.trim(),body:body.trim(),subjectId:sid,chapterId:cid})};
+const bc=parseBlanks(body).filter(p=>p.type===“blank”).length;
+return h(“div”,{style:{position:“fixed”,inset:0,background:“rgba(168,200,232,0.7)”,backdropFilter:“blur(4px)”,zIndex:1000,display:“flex”,alignItems:“center”,justifyContent:“center”,padding:16},onClick:e=>e.target===e.currentTarget&&onClose()},
+h(“div”,{style:{background:P.bg,border:`3px solid ${P.border}`,borderRadius:20,padding:28,width:“100%”,maxWidth:620,maxHeight:“90vh”,overflowY:“auto”,boxShadow:“0 8px 32px rgba(0,0,0,0.15)”}},
+h(“div”,{style:{display:“flex”,justifyContent:“space-between”,alignItems:“center”,marginBottom:20}},
+h(“div”,{style:{fontFamily:”‘Gaegu’,cursive”,fontWeight:700,fontSize:22,color:P.accent}},“카드 수정”),
+h(“button”,{onClick:onClose,style:{background:P.accentDim+“33”,border:“none”,color:P.accent,fontSize:18,cursor:“pointer”,borderRadius:“50%”,width:32,height:32,lineHeight:“32px”,textAlign:“center”}},“X”)
+),
+h(“div”,{style:{display:“grid”,gridTemplateColumns:“1fr 1fr”,gap:10,marginBottom:14}},
+h(“div”,null,h(Label,null,“과목”),h(“select”,{value:sid,onChange:e=>{setSid(e.target.value);setCid(””)},style:IS},…subjects.map(s=>h(“option”,{key:s.id,value:s.id},s.name)))),
+h(“div”,null,h(Label,null,“챕터”),h(“select”,{value:cid,onChange:e=>setCid(e.target.value),style:IS},…chapters.map(c=>h(“option”,{key:c.id,value:c.id},c.name))))
+),
+h(Label,null,“제목”),h(“input”,{value:title,onChange:e=>setTitle(e.target.value),style:{…IS,marginBottom:10}}),
+h(Label,null,“힌트 (선택)”),h(“input”,{value:hint,onChange:e=>setHint(e.target.value),placeholder:“힌트…”,style:{…IS,marginBottom:10}}),
+h(Label,null,`본문 — 빈칸 ${bc}개`),
+h(“textarea”,{ref:textRef,value:body,onChange:e=>setBody(e.target.value),rows:8,style:{…IS,display:“block”,resize:“vertical”,lineHeight:1.8}}),
+h(“div”,{style:{display:“flex”,gap:8,marginTop:12,flexWrap:“wrap”}},
+h(Btn,{onClick:wrap},“선택 → [[빈칸]]”),h(“div”,{style:{flex:1}}),h(Btn,{onClick:onClose},“취소”),h(Btn,{accent:true,onClick:save},“저장”)
+)
+)
+);
 }
 
-// ── Render ────────────────────────────────────────────────────────────────────
-function render(){
-const app=document.getElementById(‘app’);
-app.innerHTML=’’;
-const inner=el(‘div’,{id:‘inner’});
-inner.appendChild(renderHeader());
-const {view}=state;
-if(view===‘home’)inner.appendChild(renderHome());
-else if(view===‘create’)inner.appendChild(renderCreate());
-else if(view===‘study’)inner.appendChild(renderStudy());
-else if(view===‘review’)inner.appendChild(renderReview());
-else if(view===‘cards’)inner.appendChild(renderCards());
-app.appendChild(inner);
+// ── CardsView ─────────────────────────────────────────────────────────────────
+function CardsView({subjects, cards, persist}) {
+const [fs,setFs]=useState(””); const [fc,setFc]=useState(””); const [q,setQ]=useState(””); const [editCard,setEditCard]=useState(null); const [expanded,setExpanded]=useState(null);
+const chapters=subjects.find(s=>s.id===fs)?.chapters||[];
+const filtered=cards.filter(c=>{if(fs&&c.subjectId!==fs)return false;if(fc&&c.chapterId!==fc)return false;if(q){const ql=q.toLowerCase();return c.title.toLowerCase().includes(ql)||c.body.toLowerCase().includes(ql);}return true;});
+const del=id=>{if(!confirm(“이 카드를 삭제할까요?”))return;persist({subjects,cards:cards.filter(c=>c.id!==id)})};
+const saveEdit=u=>{persist({subjects,cards:cards.map(c=>c.id===u.id?u:c)});setEditCard(null)};
+const getSN=c=>subjects.find(s=>s.id===c.subjectId)?.name||”?”;
+const getCN=c=>subjects.find(s=>s.id===c.subjectId)?.chapters?.find(ch=>ch.id===c.chapterId)?.name||”?”;
+return h(“div”,{style:{animation:“fadeIn .3s ease”}},
+editCard&&h(EditModal,{card:editCard,subjects,onSave:saveEdit,onClose:()=>setEditCard(null)}),
+h(Section,{label:`카드 목록 (${filtered.length}개)`},
+h(“div”,{style:{display:“grid”,gridTemplateColumns:“1fr 1fr 2fr”,gap:8,marginBottom:16,alignItems:“end”}},
+h(“div”,null,h(Label,null,“과목”),h(“select”,{value:fs,onChange:e=>{setFs(e.target.value);setFc(””)},style:{…IS,marginBottom:0}},h(“option”,{value:””},“전체”),…subjects.map(s=>h(“option”,{key:s.id,value:s.id},s.name)))),
+h(“div”,null,h(Label,null,“챕터”),h(“select”,{value:fc,onChange:e=>setFc(e.target.value),style:{…IS,marginBottom:0},disabled:!fs},h(“option”,{value:””},“전체”),…chapters.map(c=>h(“option”,{key:c.id,value:c.id},c.name)))),
+h(“div”,null,h(Label,null,“검색”),h(“input”,{value:q,onChange:e=>setQ(e.target.value),placeholder:“제목 또는 본문 검색…”,style:{…IS,marginBottom:0}}))
+),
+filtered.length===0&&h(Empty,null,“카드가 없습니다”),
+…filtered.map(card=>{
+const parts=parseBlanks(card.body); const bc=parts.filter(p=>p.type===“blank”).length; const isExp=expanded===card.id; const due=isDue(card);
+return h(“div”,{key:card.id,style:{border:`2px solid ${isExp?P.accent:P.border}`,borderRadius:14,marginBottom:10,overflow:“hidden”,transition:“border-color .2s”,boxShadow:“0 2px 8px rgba(0,0,0,0.05)”}},
+h(“div”,{style:{display:“flex”,alignItems:“center”,padding:“11px 16px”,background:isExp?P.accent+“10”:P.surface,gap:10,flexWrap:“wrap”}},
+h(“div”,{style:{cursor:“pointer”,flex:1,minWidth:0},onClick:()=>setExpanded(isExp?null:card.id)},
+h(“div”,{style:{fontWeight:800,fontSize:14,whiteSpace:“nowrap”,overflow:“hidden”,textOverflow:“ellipsis”}},card.title),
+h(“div”,{style:{fontSize:11,color:P.muted,marginTop:3,fontWeight:700}},`${getSN(card)} · ${getCN(card)} · 빈칸 ${bc}개`,due&&h(“span”,{style:{marginLeft:8,background:P.yellow,color:P.text,borderRadius:8,padding:“1px 7px”,fontSize:10,fontWeight:800}},“복습 대기”))
+),
+h(Btn,{small:true,onClick:()=>setEditCard(card)},“수정”),
+h(“button”,{onClick:()=>del(card.id),style:{background:“none”,border:“none”,color:P.red,cursor:“pointer”,fontSize:15,padding:“2px 6px”}},“X”),
+h(“span”,{style:{color:P.muted,cursor:“pointer”,fontSize:13},onClick:()=>setExpanded(isExp?null:card.id)},isExp?“▲”:“▼”)
+),
+isExp&&h(“div”,{style:{padding:“16px 18px”,background:P.bg}},
+card.hint&&h(“div”,{style:{fontSize:12,color:P.accent,marginBottom:12,padding:“5px 12px”,background:P.accent+“15”,border:`2px dashed ${P.accentDim}`,borderRadius:10,display:“inline-block”,fontWeight:700}},`힌트: ${card.hint}`),
+h(“div”,{style:{lineHeight:2,fontSize:14}},…parts.map((p,i)=>p.type===“blank”?h(“span”,{key:i,style:{display:“inline-block”,background:P.accent+“22”,border:`2px solid ${P.accent}`,borderRadius:6,padding:“0 8px”,color:P.accent,fontWeight:800,margin:“0 3px”}},p.value):h(“span”,{key:i},h(TextWithBreaks,{value:p.value})))),
+card.nextReview&&h(“div”,{style:{marginTop:10,fontSize:11,color:P.muted,fontWeight:700}},`다음 복습: ${new Date(card.nextReview).toLocaleDateString("ko-KR")} · 반복 ${card.reps||0}회`)
+)
+);
+})
+)
+);
 }
 
-render();
+// ── App ───────────────────────────────────────────────────────────────────────
+function App() {
+const [data,setData]=useState(()=>loadData());
+const [view,setView]=useState(“home”);
+const [selSub,setSelSub]=useState(null);
+const [selCh,setSelCh]=useState(null);
+const persist=useCallback(next=>{setData(next);saveData(next)},[]);
+const subjects=data.subjects||[], cards=data.cards||[];
+const dueCount=cards.filter(isDue).length;
+return h(“div”,{style:{maxWidth:800,margin:“0 auto”,padding:“20px 16px 40px”}},
+h(Header,{view,setView,dueCount,setSelSub,setSelCh}),
+view===“home”&&h(HomeView,{subjects,cards,persist,setView,setSelSub,setSelCh}),
+view===“create”&&h(CreateView,{subjects,cards,persist,selectedSubject:selSub,setSelectedSubject:setSelSub,selectedChapter:selCh,setSelectedChapter:setSelCh}),
+view===“cards”&&h(CardsView,{subjects,cards,persist}),
+view===“test”&&h(TestView,{cards,subjects,selSub,setSelSub,selCh,setSelCh,setView}),
+view===“review”&&h(ReviewView,{cards,persist,subjects,setView})
+);
+}
+
+ReactDOM.createRoot(document.getElementById(“root”)).render(h(App));
 </script>
 
 </body>
