@@ -328,7 +328,7 @@ function renderCreate(){
   box.appendChild(lbl('힌트 (선택)'));
   const hInp=el('input',{class:'inp',placeholder:'힌트...',value:cHint,style:{marginBottom:'10px'},onInput:e=>S.cHint=e.target.value});box.appendChild(hInp);
   box.appendChild(lbl('본문 — [[빈칸]] 또는 {초성} 지정'));
-  const ta=el('textarea',{class:'inp',rows:'6',placeholder:'예: 광합성은 [[엽록체]]에서 일어난다.\n초성: {나}는 {클로드}랑 공부한다.',onInput:e=>S.cBody=e.target.value});ta.value=cBody;box.appendChild(ta);
+  const ta=el('textarea',{class:'inp',rows:'6',placeholder:'예: 민사에 관하여 {법률에 규정이 없으면 [[관습법]]에 의하고 [[관습법]]이 없으면 [[조리]]에 의한다}.\n->빈칸모드: 민사에 관하여 법률에 규정이 없으면 [빈칸]에 의하고 [빈칸]이 없으면 [빈칸]에 의한다.\n초성모드: 민사에 관하여 ㅂㄹㅇ ㄱㅈㅇ ㅇㅇㅁ ㄱㅅㅂㅇ ㅇㅎㄱ ㄱㅅㅂㅇ ㅇㅇㅁ ㅈㄹㅇ ㅇㅎㄷ.',onInput:e=>S.cBody=e.target.value});ta.value=cBody;box.appendChild(ta);
   const wrapBlank=btn('선택→[[빈칸]]','small',()=>{const s=ta.selectionStart,e=ta.selectionEnd;if(s===e)return;const next=ta.value.slice(0,s)+`[[${ta.value.slice(s,e)}]]`+ta.value.slice(e);ta.value=next;S.cBody=next;ta.focus();ta.setSelectionRange(s+2,e+2);});
   const wrapCho=btn('선택→{초성}','small teal',()=>{const s=ta.selectionStart,e=ta.selectionEnd;if(s===e)return;const next=ta.value.slice(0,s)+`{${ta.value.slice(s,e)}}`+ta.value.slice(e);ta.value=next;S.cBody=next;ta.focus();ta.setSelectionRange(s+1,e+1);});
   const prevBtn=btn(cPreview?'편집':'미리보기','small',()=>set({cPreview:!cPreview,cBody:ta.value,cTitle:tInp.value,cHint:hInp.value}));
