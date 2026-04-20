@@ -229,7 +229,7 @@ function renderHeader(){
   const{view,data}=S;const dueCount=data.cards.filter(isDue).length;
   const banner=el('div',{class:'hdr-banner',onClick:()=>set({view:'home'})},[
     el('div',{class:'hdr-title'},'BLANKQUIZ'),
-    el('div',{class:'hdr-sub'},'빈칸 학습 · 망각곡선 복습 시스템'),
+    el('div',{class:'hdr-sub'},' '),
   ]);
   function nb(label,v,cls){
     const b=el('button',{class:'nav-btn '+(cls||'')+(view===v?' active':''),onClick:()=>{
