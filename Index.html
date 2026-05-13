@@ -242,11 +242,11 @@ let S={
   testStarted:false,testDeck:[],testIdx:0,testPhase:'answering',
   testInputs:[],testCb:0,testResults:[],testSelSub:null,testSelCh:null,
   // 복습
-  revStarted:false,revDeck:[],revIdx:0,revPhase:'answering',revRound:1,
+  revStarted:false,revDeck:[],revIdx:0,revPhase:'answering',revRound:1,revMode:'two',
   revInputs:[],revCb:0,revResults:[],revSelSub:null,revSelCh:null,
   revNewCount:10,
   // 카드 목록
-  cardFs:'',cardFc:'',cardQ:'',cardEdit:null,cardExpanded:null,
+  cardFs:'',cardFc:'',cardQ:'',cardSort:'chapter',cardEdit:null,cardExpanded:null,
 };
 function persist(data){S.data=data;saveData(data);render();}
 function set(patch){Object.assign(S,patch);render();}
@@ -740,7 +740,19 @@ function renderQuizBody(parts,phase,inputs,cb,locked,ref,onInput,onEnter,mode){
 function renderStudy(){
   const{data,selSub,selCh,studyMode,studyResumePrompt}=S;
   const subjects=data.subjects;
-  const base=data.cards.filter(c=>(!selSub||c.subjectId===selSub)&&(!selCh||c.chapterId===selCh));
+  const baseRaw=data.cards.filter(c=>(!selSub||c.subjectId===selSub)&&(!selCh||c.chapterId===selCh));
+  const base=baseRaw.slice().sort(function(a,b){
+    const subs=data.subjects;
+    const si=subs.findIndex(function(s){return s.id===a.subjectId;});
+    const si2=subs.findIndex(function(s){return s.id===b.subjectId;});
+    if(si!==si2)return si-si2;
+    const s=subs[Math.max(0,si)]||{chapters:[]};
+    const ci=(s.chapters||[]).findIndex(function(c){return c.id===a.chapterId;});
+    const ci2=(s.chapters||[]).findIndex(function(c){return c.id===b.chapterId;});
+    if(ci!==ci2)return ci-ci2;
+    if(S.cardSort==='title')return a.title.localeCompare(b.title,'ko');
+    return new Date(a.created||0)-new Date(b.created||0);
+  });
   if(!base.length)return el('div',{style:{textAlign:'center',padding:'60px'}},[el('div',{style:{color:C.muted}},'이 챕터에 카드가 없습니다'),el('div',{style:{marginTop:'20px'}},[btn('홈으로','',()=>set({view:'home'}))])]);
 
   // 이어하기 선택 화면
@@ -972,7 +984,7 @@ function renderTest(){
 
 // ── Review ───────────────────────────────────────────────────────────────────
 function renderReview(){
-  const{data,revStarted,revDeck,revIdx,revPhase,revInputs,revCb,revResults,revSelSub,revSelCh,revNewCount,revRound}=S;
+  const{data,revStarted,revDeck,revIdx,revPhase,revInputs,revCb,revResults,revSelSub,revSelCh,revNewCount,revRound,revMode}=S;
   const{subjects,cards}=data;
   const allCh=subjects.find(s=>s.id===revSelSub)?.chapters||[];
 
@@ -1048,10 +1060,33 @@ function renderReview(){
       legacyBox.appendChild(resetBtn);
       box.appendChild(legacyBox);
     }
+    // 모드 선택
+    const modeRow=el('div',{class:'flex',style:{marginBottom:'16px',gap:'10px'}});
+    const modeLabel=el('span',{style:{fontSize:'13px',color:C.muted,fontWeight:'700'}});modeLabel.textContent='반복 모드:';modeRow.appendChild(modeLabel);
+    const modeTwo=el('button',{style:{padding:'5px 16px',borderRadius:'20px',border:'2px solid #3aafa9',fontSize:'12px',fontWeight:'700',cursor:'pointer',background:S.revMode==='two'?'#3aafa9':'none',color:S.revMode==='two'?'#fff':'#3aafa9'}});
+    modeTwo.textContent='2회';modeTwo.addEventListener('click',function(){S.revMode='two';modeTwo.style.background='#3aafa9';modeTwo.style.color='#fff';modeRepeat.style.background='none';modeRepeat.style.color='#3aafa9';});
+    const modeRepeat=el('button',{style:{padding:'5px 16px',borderRadius:'20px',border:'2px solid #3aafa9',fontSize:'12px',fontWeight:'700',cursor:'pointer',background:S.revMode==='repeat'?'#3aafa9':'none',color:S.revMode==='repeat'?'#fff':'#3aafa9'}});
+    modeRepeat.textContent='맞출때까지';modeRepeat.addEventListener('click',function(){S.revMode='repeat';modeRepeat.style.background='#3aafa9';modeRepeat.style.color='#fff';modeTwo.style.background='none';modeTwo.style.color='#3aafa9';});
+    modeRow.appendChild(modeTwo);modeRow.appendChild(modeRepeat);box.appendChild(modeRow);
     box.appendChild(btn('복습 시작','teal',()=>{
       if(!dueCards.length&&!todayNew){alert('복습할 카드가 없습니다.');return;}
-      const deck=[...shuffle(dueCards),...shuffle(newCards).slice(0,S.revNewCount)];
-      set({revStarted:true,revDeck:deck,revIdx:0,revPhase:'answering',revInputs:[],revCb:0,revResults:[],revRound:1});
+      // 과목→챕터→정렬순
+      function sortCards(arr){
+        return arr.slice().sort(function(a,b){
+          const si=subjects.findIndex(function(s){return s.id===a.subjectId;});
+          const si2=subjects.findIndex(function(s){return s.id===b.subjectId;});
+          if(si!==si2)return si-si2;
+          const s=subjects[Math.max(0,si)]||{chapters:[]};
+          const ci=(s.chapters||[]).findIndex(function(c){return c.id===a.chapterId;});
+          const ci2=(s.chapters||[]).findIndex(function(c){return c.id===b.chapterId;});
+          if(ci!==ci2)return ci-ci2;
+          // 카드 목록 정렬 기준 적용
+          if(S.cardSort==='title')return a.title.localeCompare(b.title,'ko');
+          return new Date(a.created||0)-new Date(b.created||0);
+        });
+      }
+      const deck=[...sortCards(dueCards),...sortCards(newCards).slice(0,S.revNewCount)];
+      set({revStarted:true,revDeck:deck,revIdx:0,revPhase:'answering',revInputs:[],revCb:0,revResults:[],revRound:1,revMode:S.revMode});
     }));
     return el('div',{class:'fade'},[sectionEl('오늘의 복습',[box])]);
   }
@@ -1089,15 +1124,31 @@ function renderReview(){
   const cor=i=>(revInputs[i]||'').trim()===(blanks[i]?blanks[i].value:'').trim();
   const ne=()=>{
     if(revPhase==='result'){
-      const cc=blanks.filter((_,i)=>cor(i)).length;
-      if(!isRound2){
-        // 1회차: SM-2 업데이트 후 2회차
+      const cc=blanks.filter((_,i)=>cor(i)).length;const cc2=cc;
+      if(revRound===1){
+        // 1회차: SM-2 업데이트 (공통)
         const q=cc===blanks.length?2:cc>0?1:0;
         persist({...S.data,cards:S.data.cards.map(c=>c.id===card.id?{...c,...getNextReview(c,q)}:c)});
-        set({revPhase:'answering',revInputs:[],revCb:0,revRound:2});
+        if(revMode==='two'){
+          // 2회 모드: 2회차로
+          set({revPhase:'answering',revInputs:[],revCb:0,revRound:2});
+        } else {
+          // 반복 모드: 전부 맞으면 다음, 아니면 다시
+          if(cc===blanks.length){
+            set({revResults:[...revResults,{card,correct:cc,total:blanks.length}],revIdx:revIdx+1,revPhase:'answering',revInputs:[],revCb:0,revRound:1});
+          } else {
+            set({revPhase:'answering',revInputs:[],revCb:0,revRound:2});
+          }
+        }
       } else {
-        // 2회차: 다음 카드
-        set({revResults:[...revResults,{card,correct:cc,total:blanks.length}],revIdx:revIdx+1,revPhase:'answering',revInputs:[],revCb:0,revRound:1});
+        // 2회차 이후
+        if(revMode==='two'||cc===blanks.length){
+          // 2회 모드이거나 전부 맞으면 다음 카드
+          set({revResults:[...revResults,{card,correct:cc,total:blanks.length}],revIdx:revIdx+1,revPhase:'answering',revInputs:[],revCb:0,revRound:1});
+        } else {
+          // 반복 모드 + 오답: 계속 반복
+          set({revPhase:'answering',revInputs:[],revCb:0,revRound:revRound+1});
+        }
       }
       return;
     }
@@ -1121,7 +1172,8 @@ function renderReview(){
 
   const badge=el('div',{style:{fontSize:'11px',fontWeight:'800',marginBottom:'6px'}});
   badge.style.color=isRound2?C.purple:sectionColor;
-  badge.textContent=(sectionLabel==='신규'?'🆕 신규':'📚 복습')+(isRound2?' · 2회차 (즉시 복습)':' · 1회차');
+  const roundLabel=revRound===1?'1회차':(revMode==='repeat'?revRound+'회차':'2회차 (즉시 복습)');
+  badge.textContent=(sectionLabel==='신규'?'🆕 신규':'📚 복습')+' · '+roundLabel;
   wrap.appendChild(badge);
 
   const qcard=el('div',{class:'quiz-card tb'});
@@ -1139,29 +1191,50 @@ function renderReview(){
     fl.appendChild(btn(revCb<blanks.length-1?'다음 빈칸':'채점','teal',ne));
     footer.appendChild(fl);
   } else {
-    const cc=blanks.filter((_,i)=>cor(i)).length;
+    const cc=blanks.filter((_,i)=>cor(i)).length;const cc2=cc;
     const fl=el('div',{class:'flex'});
     fl.appendChild(el('span',{style:{fontWeight:'800'}},[el('span',{style:{color:cc===blanks.length?C.green:C.red,fontSize:'18px'}},String(cc)),el('span',{style:{color:C.muted}},' / '+blanks.length+' 정답')]));
     if(!isRound2)fl.appendChild(el('span',{style:{fontSize:'12px',color:C.muted,fontWeight:'700'}},'다음 복습: '+(card.interval||1)+'일 후'));
-    fl.appendChild(btn(isRound2?'다음 카드':'2회차 시작',isRound2?'teal':'purple',ne));
+    const nextBtnLabel=revRound===1?(revMode==='two'?'2회차 시작':'즉시 복습'):(revMode==='two'||cc2===blanks.length)?'다음 카드':'다시 풀기';
+    const nextBtnCls=revRound===1?'purple':(revMode==='two'||cc2===blanks.length)?'teal':'red';
+    fl.appendChild(btn(nextBtnLabel,nextBtnCls,ne));
     footer.appendChild(fl);
   }
   qcard.appendChild(footer);wrap.appendChild(qcard);return wrap;
 }
 
 function renderCards(){
-  const{data,cardFs,cardFc,cardQ,cardEdit,cardExpanded}=S;const{subjects,cards}=data;
+  const{data,cardFs,cardFc,cardQ,cardSort,cardEdit,cardExpanded}=S;const{subjects,cards}=data;
   const chapters=getChapters(subjects,cardFs);
-  const filtered=cards.filter(c=>{if(cardFs&&c.subjectId!==cardFs)return false;if(cardFc&&c.chapterId!==cardFc)return false;if(cardQ){const q=cardQ.toLowerCase();return c.title.toLowerCase().includes(q)||c.body.toLowerCase().includes(q);}return true;});
+  let filtered=cards.filter(c=>{if(cardFs&&c.subjectId!==cardFs)return false;if(cardFc&&c.chapterId!==cardFc)return false;if(cardQ){const q=cardQ.toLowerCase();return c.title.toLowerCase().includes(q)||c.body.toLowerCase().includes(q);}return true;});
+  // 정렬
+  if(cardSort==='chapter'){
+    filtered=filtered.slice().sort(function(a,b){
+      const si=subjects.findIndex(function(s){return s.id===a.subjectId;});
+      const si2=subjects.findIndex(function(s){return s.id===b.subjectId;});
+      if(si!==si2)return si-si2;
+      const s=subjects[Math.max(0,si)]||{chapters:[]};
+      const ci=(s.chapters||[]).findIndex(function(c){return c.id===a.chapterId;});
+      const ci2=(s.chapters||[]).findIndex(function(c){return c.id===b.chapterId;});
+      if(ci!==ci2)return ci-ci2;
+      return new Date(a.created||0)-new Date(b.created||0);
+    });
+  } else if(cardSort==='created'){
+    filtered=filtered.slice().sort(function(a,b){return new Date(a.created||0)-new Date(b.created||0);});
+  } else if(cardSort==='title'){
+    filtered=filtered.slice().sort(function(a,b){return a.title.localeCompare(b.title,'ko');});
+  }
   const getSN2=c=>getSN(subjects,c);const getCN2=c=>getCN(subjects,c);
   const wrap=el('div',{class:'fade'});
   if(cardEdit)wrap.appendChild(renderEditModal(cardEdit,subjects,cards));
-  const filterGrid=el('div',{class:'grid3',style:{marginBottom:'16px'}});
+  const filterGrid=el('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:'8px',marginBottom:'16px',alignItems:'end'}});
   const subSel=el('select',{class:'inp',style:{marginBottom:'0'},onChange:e=>set({cardFs:e.target.value,cardFc:''})});subSel.appendChild(el('option',{value:''},'전체'));subjects.forEach(s=>{const o=el('option',{value:s.id},s.name);if(s.id===cardFs)o.selected=true;subSel.appendChild(o);});
   const chSel=el('select',{class:'inp',style:{marginBottom:'0'},onChange:e=>set({cardFc:e.target.value})});chSel.appendChild(el('option',{value:''},'전체'));if(cardFs){chapters.forEach(c=>{const o=el('option',{value:c.id},c.name);if(c.id===cardFc)o.selected=true;chSel.appendChild(o);});}else chSel.disabled=true;
   const searchInp=el('input',{class:'inp',style:{marginBottom:'0'},placeholder:'검색...',value:cardQ,onInput:e=>set({cardQ:e.target.value})});
-  const d1=el('div');d1.appendChild(lbl('과목'));d1.appendChild(subSel);const d2=el('div');d2.appendChild(lbl('챕터'));d2.appendChild(chSel);const d3=el('div');d3.appendChild(lbl('검색'));d3.appendChild(searchInp);
-  filterGrid.appendChild(d1);filterGrid.appendChild(d2);filterGrid.appendChild(d3);
+  const sortSel=el('select',{class:'inp',style:{marginBottom:'0'},onChange:e=>set({cardSort:e.target.value})});
+  [{v:'chapter',l:'챕터순'},{v:'created',l:'생성일순'},{v:'title',l:'제목순'}].forEach(function(o){const opt=el('option',{value:o.v});opt.textContent=o.l;if(o.v===cardSort)opt.selected=true;sortSel.appendChild(opt);});
+  const d1=el('div');d1.appendChild(lbl('과목'));d1.appendChild(subSel);const d2=el('div');d2.appendChild(lbl('챕터'));d2.appendChild(chSel);const d3=el('div');d3.appendChild(lbl('검색'));d3.appendChild(searchInp);const d4=el('div');d4.appendChild(lbl('정렬'));d4.appendChild(sortSel);
+  filterGrid.appendChild(d1);filterGrid.appendChild(d2);filterGrid.appendChild(d3);filterGrid.appendChild(d4);
   const sec=sectionEl(`카드 목록 (${filtered.length}개)`,[filterGrid]);
   if(!filtered.length)sec.appendChild(el('div',{class:'empty'},'카드가 없습니다'));
   filtered.forEach(card=>{
@@ -1233,12 +1306,15 @@ document.addEventListener('keydown',function(e){
     const card=S.revDeck[S.revIdx];if(!card)return;
     const blanks=parseForMode(card.body,'blank').filter(p=>p.type==='blank');
     const cc=blanks.filter((_,i)=>(S.revInputs[i]||'').trim()===blanks[i].value.trim()).length;
-    if(S.revRound!==2){
+    if(S.revRound===1){
       const q=cc===blanks.length?2:cc>0?1:0;
       persist({...S.data,cards:S.data.cards.map(c=>c.id===card.id?{...c,...getNextReview(c,q)}:c)});
-      set({revPhase:'answering',revInputs:[],revCb:0,revRound:2});
+      if(S.revMode==='two'){set({revPhase:'answering',revInputs:[],revCb:0,revRound:2});}
+      else if(cc===blanks.length){set({revResults:[...S.revResults,{card,correct:cc,total:blanks.length}],revIdx:S.revIdx+1,revPhase:'answering',revInputs:[],revCb:0,revRound:1});}
+      else{set({revPhase:'answering',revInputs:[],revCb:0,revRound:2});}
     } else {
-      set({revResults:[...S.revResults,{card,correct:cc,total:blanks.length}],revIdx:S.revIdx+1,revPhase:'answering',revInputs:[],revCb:0,revRound:1});
+      if(S.revMode==='two'||cc===blanks.length){set({revResults:[...S.revResults,{card,correct:cc,total:blanks.length}],revIdx:S.revIdx+1,revPhase:'answering',revInputs:[],revCb:0,revRound:1});}
+      else{set({revPhase:'answering',revInputs:[],revCb:0,revRound:S.revRound+1});}
     }
   }
 });
