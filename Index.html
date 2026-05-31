@@ -141,9 +141,10 @@ const KEY='blankquiz_v1';const SKEY='blankquiz_study';
 let _mem={subjects:[],cards:[]};
 function loadData(){try{const r=localStorage.getItem(KEY)||localStorage.getItem('bq_v1');if(r)return JSON.parse(r);}catch{}return _mem;}
 function saveData(d){_mem=d;try{localStorage.setItem(KEY,JSON.stringify(d));}catch{}}
-function saveStudy(p){try{localStorage.setItem(SKEY,JSON.stringify(p));}catch{}}
-function loadStudy(){try{const r=localStorage.getItem(SKEY);if(r)return JSON.parse(r);}catch{}return null;}
-function clearStudy(){try{localStorage.removeItem(SKEY);}catch{}}
+var _studyMem=null;
+function saveStudy(p){_studyMem=p;try{localStorage.setItem(SKEY,JSON.stringify(p));}catch{}}
+function loadStudy(){if(_studyMem)return _studyMem;try{const r=localStorage.getItem(SKEY);if(r)return JSON.parse(r);}catch{}return null;}
+function clearStudy(){_studyMem=null;try{localStorage.removeItem(SKEY);}catch{}}
 const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
 const shuffle=a=>[...a].sort(()=>Math.random()-.5);
 
@@ -436,9 +437,9 @@ function renderSubjectCard(sub,cards){
       if(subjCards.length>0){
         subjBtnRow.appendChild(btn('과목 전체 학습','small green',()=>{
           const saved=loadStudy();
-          const same=saved&&saved.selSub===sub.id&&!saved.selCh&&saved.studyIdx>0;
+          const same=saved&&saved.selSub===sub.id&&!saved.selCh&&(saved.studyIdx>0||saved.studyDone>0||saved.completed);
           if(same){set({view:'study',selSub:sub.id,selCh:null,studyResumePrompt:true});}
-          else{clearStudy();set({view:'study',selSub:sub.id,selCh:null,studyMode:'blank',studyQueue:[],studyIdx:0,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{},studyDone:0,studyResumePrompt:false});}
+          else{clearStudy();set({view:'study',selSub:sub.id,selCh:null,studyCount:0,studyMode:'blank',studyQueue:[],studyIdx:0,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{},studyDone:0,studyResumePrompt:false});}
         }));
       }
       if(subjBtnRow.children.length>0)wrapper.appendChild(subjBtnRow);
@@ -460,13 +461,13 @@ function renderSubjectCard(sub,cards){
       row.appendChild(btn('+ 카드','small',()=>set({view:'create',selSub:sub.id,selCh:ch.id,cTitle:'',cHint:'',cBody:'',cPreview:false})));
       row.appendChild(btn('학습','small green',()=>{
         const saved=loadStudy();
-        const sameCh=saved&&saved.selSub===sub.id&&saved.selCh===ch.id&&saved.studyIdx>0;
+        const sameCh=saved&&saved.selSub===sub.id&&saved.selCh===ch.id&&(saved.studyIdx>0||saved.studyDone>0||saved.completed);
         if(sameCh){
           set({view:'study',selSub:sub.id,selCh:ch.id,studyResumePrompt:true});
         } else {
           clearStudy();
           set({view:'study',selSub:sub.id,selCh:ch.id,
-            studyMode:'blank',studyQueue:[],studyIdx:0,studyPhase:'answering',
+            studyMode:'blank',studyCount:0,studyStartIdx:0,studyQueue:[],studyIdx:0,studyPhase:'answering',
             studyInputs:[],studyCb:0,studyLocked:{},studyDone:0,
             studyResumePrompt:false});
         }
@@ -738,102 +739,229 @@ function renderQuizBody(parts,phase,inputs,cb,locked,ref,onInput,onEnter,mode){
 
 // ── Study ────────────────────────────────────────────────────────────────────
 function renderStudy(){
-  const{data,selSub,selCh,studyMode,studyResumePrompt}=S;
+  const{data,selSub,selCh,studyMode,studyResumePrompt,studyCount,studyStartIdx}=S;
   const subjects=data.subjects;
-  const baseRaw=data.cards.filter(c=>(!selSub||c.subjectId===selSub)&&(!selCh||c.chapterId===selCh));
-  const base=baseRaw.slice().sort(function(a,b){
-    const subs=data.subjects;
-    const si=subs.findIndex(function(s){return s.id===a.subjectId;});
-    const si2=subs.findIndex(function(s){return s.id===b.subjectId;});
+
+  // 정렬된 전체 카드 배열
+  const allCards=data.cards.filter(c=>(!selSub||c.subjectId===selSub)&&(!selCh||c.chapterId===selCh));
+  const base=allCards.slice().sort(function(a,b){
+    const si=subjects.findIndex(function(s){return s.id===a.subjectId;});
+    const si2=subjects.findIndex(function(s){return s.id===b.subjectId;});
     if(si!==si2)return si-si2;
-    const s=subs[Math.max(0,si)]||{chapters:[]};
+    const s=subjects[Math.max(0,si)]||{chapters:[]};
     const ci=(s.chapters||[]).findIndex(function(c){return c.id===a.chapterId;});
     const ci2=(s.chapters||[]).findIndex(function(c){return c.id===b.chapterId;});
     if(ci!==ci2)return ci-ci2;
     if(S.cardSort==='title')return a.title.localeCompare(b.title,'ko',{numeric:true,sensitivity:'base'});
     return new Date(a.created||0)-new Date(b.created||0);
   });
-  if(!base.length)return el('div',{style:{textAlign:'center',padding:'60px'}},[el('div',{style:{color:C.muted}},'이 챕터에 카드가 없습니다'),el('div',{style:{marginTop:'20px'}},[btn('홈으로','',()=>set({view:'home'}))])]);
 
-  // 이어하기 선택 화면
+  if(!base.length){
+    const ew=el('div',{style:{textAlign:'center',padding:'60px'}});
+    ew.appendChild(el('div',{style:{color:C.muted,marginBottom:'20px'}},'카드가 없습니다'));
+    ew.appendChild(btn('홈으로','',()=>set({view:'home'})));return ew;
+  }
+
+  // ── 이어하기 선택 화면 ──────────────────────────────────────────────
   if(studyResumePrompt){
     const saved=loadStudy();
     const box=el('div',{class:'resume-box'});
-    box.appendChild(el('div',{style:{fontWeight:'800',fontSize:'16px',marginBottom:'8px',color:C.text}},'이전 학습 기록이 있어요'));
-    box.appendChild(el('div',{style:{fontSize:'13px',color:C.muted,marginBottom:'16px'}},`${saved.studyDone||0} / ${base.length}개 완료`));
-    const btns=el('div',{class:'flex'});
-    btns.appendChild(btn('이어서 학습','green',()=>{
-      S.studyQueue=base;S.studyIdx=saved.studyIdx||0;S.studyDone=saved.studyDone||0;
-      S.studyMode=saved.studyMode||'blank';S.studyPhase='answering';
-      S.studyInputs=[];S.studyCb=0;S.studyLocked={};S.studyResumePrompt=false;
-      render();
-    }));
-    btns.appendChild(btn('처음부터 시작','',()=>{clearStudy();set({studyResumePrompt:false,studyQueue:base,studyIdx:0,studyDone:0,studyMode:'blank',studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});}));
-    box.appendChild(btns);
-    return el('div',{class:'fade'},[box]);
+    const isCompleted=saved&&saved.completed;
+    const nextStart3=(saved.studyStartIdx||0)+(saved.studyCount||0);
+    const hasNext=nextStart3<base.length;
+
+    if(isCompleted&&hasNext){
+      // 구간 완료 후 홈으로 → 다음 구간 안내
+      const t1=el('div',{style:{fontWeight:'800',fontSize:'16px',marginBottom:'8px'}});
+      t1.textContent=(saved.studyStartIdx+1)+'~'+(saved.studyStartIdx+saved.studyCount)+'번 구간 완료!';
+      box.appendChild(t1);
+      const nextCount2=Math.min(saved.studyCount,base.length-nextStart3);
+      const t2=el('div',{style:{fontSize:'13px',color:C.muted,marginBottom:'16px'}});
+      t2.textContent='다음: '+(nextStart3+1)+'~'+(nextStart3+nextCount2)+'번 카드 ('+nextCount2+'개)';
+      box.appendChild(t2);
+      const brow=el('div',{class:'flex'});
+      brow.appendChild(btn('이어서 학습 →','green',()=>{
+        clearStudy();
+        const nextQueue=base.slice(nextStart3,nextStart3+nextCount2);
+        S.studyQueue=nextQueue;
+        set({studyResumePrompt:false,studyStartIdx:nextStart3,studyCount:nextCount2,
+          studyQueue:nextQueue,studyIdx:0,studyDone:0,studyMode:'blank',
+          studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});
+      }));
+      brow.appendChild(btn('처음부터','',()=>{
+        clearStudy();
+        set({studyResumePrompt:false,studyCount:0,studyStartIdx:0,studyQueue:[],
+          studyIdx:0,studyDone:0,studyMode:'blank',studyPhase:'answering',
+          studyInputs:[],studyCb:0,studyLocked:{}});
+      }));
+      box.appendChild(brow);
+    } else {
+      // 진행 중 중단
+      const t1=el('div',{style:{fontWeight:'800',fontSize:'16px',marginBottom:'8px'}});
+      t1.textContent='이전 학습 기록이 있어요';box.appendChild(t1);
+      const savedMode=(saved&&saved.studyMode)==='cho'?'초성':'빈칸';
+      const t2=el('div',{style:{fontSize:'13px',color:C.muted,marginBottom:'16px'}});
+      t2.textContent=((saved&&saved.studyStartIdx)||0+1)+'~'+((saved&&saved.studyStartIdx||0)+(saved&&saved.studyCount||0))+'번 카드 · '+savedMode+' 모드 · '+((saved&&saved.studyDone)||0)+'/'+(saved&&saved.studyCount||0)+'개 완료';
+      box.appendChild(t2);
+      const brow=el('div',{class:'flex'});
+      brow.appendChild(btn('이어서 학습','green',()=>{
+        const queue=base.slice(saved.studyStartIdx,saved.studyStartIdx+saved.studyCount);
+        S.studyQueue=queue;S.studyIdx=saved.studyIdx||0;S.studyDone=saved.studyDone||0;
+        S.studyMode=saved.studyMode||'blank';S.studyStartIdx=saved.studyStartIdx||0;
+        S.studyCount=saved.studyCount||queue.length;
+        S.studyPhase='answering';S.studyInputs=[];S.studyCb=0;S.studyLocked={};
+        S.studyResumePrompt=false;render();
+      }));
+      brow.appendChild(btn('처음부터','',()=>{
+        clearStudy();
+        set({studyResumePrompt:false,studyCount:0,studyStartIdx:0,studyQueue:[],
+          studyIdx:0,studyDone:0,studyMode:'blank',studyPhase:'answering',
+          studyInputs:[],studyCb:0,studyLocked:{}});
+      }));
+      box.appendChild(brow);
+    }
+    return box;
   }
 
-  // 큐 초기화
-  if(!S.studyQueue.length)S.studyQueue=base;
-  const queue=S.studyQueue;
+  // ── 개수 선택 화면 ──────────────────────────────────────────────────
+  if(!studyCount){
+    const wrap=el('div',{});
+    const box=el('div',{class:'card-box'});
+    const t=el('div',{style:{fontWeight:'800',fontSize:'15px',marginBottom:'6px',color:C.text}});
+    t.textContent='학습할 카드 수 선택';box.appendChild(t);
+    const sub=el('div',{style:{fontSize:'12px',color:C.muted,marginBottom:'16px'}});
+    sub.textContent='전체 '+base.length+'개 · '+studyStartIdx+'번부터';box.appendChild(sub);
+    const opts=el('div',{class:'flex',style:{flexWrap:'wrap',gap:'8px',marginBottom:'16px'}});
+    [10,20,30,50].filter(n=>n<base.length-studyStartIdx).concat([base.length-studyStartIdx]).forEach(function(n){
+      const label=n===base.length-studyStartIdx?'전체 ('+(base.length-studyStartIdx)+'개)':n+'개';
+      opts.appendChild(btn(label,'',function(){
+        startStudy(n);
+      }));
+    });
+    box.appendChild(opts);
+    const customRow=el('div',{class:'flex'});
+    const customInp=el('input',{class:'inp',type:'number',placeholder:'직접 입력',style:{width:'110px',marginBottom:'0',textAlign:'center'}});
+    customInp.addEventListener('keydown',function(e){if(e.key==='Enter')doCustom();});
+    customRow.appendChild(customInp);
+    customRow.appendChild(btn('확인','teal',function(){doCustom();}));
+    function doCustom(){
+      const n=Math.min(Math.max(parseInt(customInp.value)||1,1),base.length-studyStartIdx);
+      startStudy(n);
+    }
+    box.appendChild(customRow);
+    if(studyStartIdx>0){
+      const resetRow=el('div',{style:{marginTop:'12px'}});
+      resetRow.appendChild(btn('처음(1번)부터','',function(){
+        set({studyStartIdx:0,studyCount:0});
+      }));
+      box.appendChild(resetRow);
+    }
+    wrap.appendChild(box);return wrap;
+  }
 
-  // 완료 화면
+  function startStudy(n){
+    const queue=base.slice(studyStartIdx,studyStartIdx+n);
+    S.studyQueue=queue;
+    set({studyCount:n,studyMode:'blank',studyIdx:0,studyDone:0,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});
+  }
+
+  // ── 학습 진행 ────────────────────────────────────────────────────────
+  const queue=S.studyQueue.length?S.studyQueue:base.slice(studyStartIdx,studyStartIdx+studyCount);
+  if(!S.studyQueue.length)S.studyQueue=queue;
+
+  // ── 완료 화면 ────────────────────────────────────────────────────────
   if(S.studyIdx>=queue.length){
-    clearStudy();
-    const modeLabel={'blank':'빈칸 완전 숙달!','cho':'초성 완전 숙달!','muk':'통암기 완료!'};
-    const modeColor={'blank':C.green,'cho':C.teal,'muk':C.purple};
-    const wrap=el('div',{style:{textAlign:'center',padding:'40px 20px',animation:'fadeIn .4s ease'}});
-    wrap.appendChild(el('div',{style:{fontSize:'32px',fontWeight:'800',color:modeColor[studyMode]||C.green,marginBottom:'8px'}},modeLabel[studyMode]||'완료!'));
-    wrap.appendChild(el('div',{style:{color:C.muted,marginBottom:'28px'}},`${base.length}개 카드 완료`));
-    const opts=el('div',{class:'complete-opts'});
-    const goMode=(mode,label,cls)=>btn(label,cls,()=>{S.studyQueue=base;set({studyMode:mode,studyIdx:0,studyDone:0,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});});
-    const hasCho=base.some(c=>parseBody(c.body).some(p=>p.type==='cho'));
-    if(studyMode==='blank'){
-      if(hasCho)opts.appendChild(goMode('cho','초성 학습으로 이어하기','teal'));
-      opts.appendChild(goMode('muk','통암기 학습으로 이어하기','purple'));
-      opts.appendChild(goMode('blank','빈칸 다시 학습','green'));
-    } else if(studyMode==='cho'){
-      opts.appendChild(goMode('muk','통암기 학습으로 이어하기','purple'));
-      opts.appendChild(goMode('blank','빈칸 학습','green'));
-      opts.appendChild(goMode('cho','초성 다시 학습','teal'));
+    // 완료 상태 저장 (홈 갔다가 다음 구간 이어하기 위해)
+    const nextStart2=studyStartIdx+studyCount;
+    if(nextStart2<base.length){
+      saveStudy({selSub,selCh,studyIdx:queue.length,studyDone:queue.length,
+        studyMode,studyStartIdx,studyCount,completed:true});
     } else {
-      opts.appendChild(goMode('blank','빈칸 학습','green'));
-      if(hasCho)opts.appendChild(goMode('cho','초성 학습','teal'));
-      opts.appendChild(goMode('muk','통암기 다시 학습','purple'));
+      clearStudy();
+    }
+    const modeLabel={'blank':'빈칸 완료!','cho':'초성 완료!','muk':'통암기 완료!'};
+    const modeColor={'blank':C.green,'cho':C.teal,'muk':C.purple};
+    const wrap=el('div',{style:{textAlign:'center',padding:'30px 20px'}});
+    wrap.appendChild(el('div',{style:{fontSize:'28px',fontWeight:'800',color:modeColor[studyMode]||C.green,marginBottom:'6px'}},modeLabel[studyMode]||'완료!'));
+    wrap.appendChild(el('div',{style:{color:C.muted,marginBottom:'6px'}},
+      (studyStartIdx+1)+'~'+(studyStartIdx+studyCount)+'번 카드 · '+queue.length+'개'));
+    const opts=el('div',{class:'complete-opts'});
+
+    const hasCho=queue.some(c=>parseBody(c.body).some(p=>p.type==='cho'));
+    const nextStart=studyStartIdx+studyCount;
+    const hasMore=nextStart<base.length;
+
+    if(studyMode==='blank'){
+      if(hasCho){
+        const choBtn=btn('초성 학습 시작 →','teal',()=>{
+          S.studyQueue=queue;
+          set({studyMode:'cho',studyIdx:0,studyDone:0,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});
+        });
+        choBtn.style.fontSize='15px';choBtn.style.padding='10px 28px';opts.appendChild(choBtn);
+      } else {
+        // 초성 없으면 바로 다음 구간 옵션
+        _addNextOptions();
+      }
+      opts.appendChild(btn('같은 구간 빈칸 다시','',()=>{
+        S.studyQueue=queue;set({studyMode:'blank',studyIdx:0,studyDone:0,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});
+      }));
+    } else if(studyMode==='cho'){
+      _addNextOptions();
+      opts.appendChild(btn('같은 구간 다시 학습','',()=>{
+        S.studyQueue=queue;set({studyMode:'blank',studyIdx:0,studyDone:0,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});
+      }));
+    } else {
+      _addNextOptions();
+      opts.appendChild(btn('같은 구간 다시 학습','',()=>{
+        S.studyQueue=queue;set({studyMode:'blank',studyIdx:0,studyDone:0,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});
+      }));
     }
     opts.appendChild(btn('홈으로','',()=>set({view:'home'})));
-    wrap.appendChild(opts);return wrap;
+    wrap.appendChild(opts);
+
+    function _addNextOptions(){
+      if(hasMore){
+        const nextCount=Math.min(studyCount,base.length-nextStart);
+        opts.appendChild(btn('다음 '+nextCount+'개 학습 →','accent',()=>{
+          const nextQueue=base.slice(nextStart,nextStart+studyCount);
+          S.studyQueue=nextQueue;
+          set({studyStartIdx:nextStart,studyCount:nextCount,studyQueue:nextQueue,studyIdx:0,studyDone:0,studyMode:'blank',studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});
+        }));
+      } else {
+        opts.appendChild(el('div',{style:{fontSize:'13px',color:C.muted,padding:'4px 0'}},'모든 카드를 학습했어요!'));
+        opts.appendChild(btn('처음(1번)부터 다시','',()=>{
+          set({studyStartIdx:0,studyCount:0,studyQueue:[],studyIdx:0,studyDone:0,studyMode:'blank'});
+        }));
+      }
+    }
+    return wrap;
   }
 
   const card=queue[S.studyIdx];
+  if(!card){S.studyIdx++;render();return null;}
   const parts=parseForMode(card.body,studyMode);
   const actives=getActiveParts(parts,studyMode);
-  // 현재 모드에서 활성 파트가 없는 카드는 스킵
-  if(!actives.length){
-    S.studyIdx++;S.studyDone++;render();return null;
-  }
+  if(!actives.length){S.studyIdx++;S.studyDone++;render();return null;}
 
-  const sn=getSN(subjects,card);
-  const cn=getCN(subjects,card);
-  const progressPct=base.length?(S.studyDone/base.length)*100:0;
+  const sn=getSN(subjects,card),cn=getCN(subjects,card);
+  const progressPct=queue.length?(S.studyDone/queue.length)*100:0;
   const unlockedCount=actives.filter(function(_,i){return !S.studyLocked[i];}).length;
   const nextUnlocked=from=>{let i=from;while(i<actives.length&&S.studyLocked[i])i++;return i;};
   const hi=val=>{const n=[...S.studyInputs];n[S.studyCb]=val;S.studyInputs=n;};
   const ne=()=>{
     if(S.studyPhase==='result'){
-      // 통암기: 맞든 틀리든 다음 카드
       if(studyMode==='muk'){
         const nd=S.studyDone+1,ni=S.studyIdx+1;
-        saveStudy({selSub,selCh,studyIdx:ni,studyDone:nd,studyMode});
+        saveStudy({selSub,selCh,studyIdx:ni,studyDone:nd,studyMode,studyStartIdx,studyCount});
         if(ni>=queue.length)clearStudy();
         set({studyDone:nd,studyIdx:ni,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});
         return;
       }
       if(studyMode==='blank'){
-        const allOk=actives.every((a,i)=>(S.studyInputs[i]||'').trim()===a.value.trim());
+        const allOk=actives.every(function(a,i){return (S.studyInputs[i]||'').trim()===a.value.trim();});
         if(allOk){
           const nd=S.studyDone+1,ni=S.studyIdx+1;
-          saveStudy({selSub,selCh,studyIdx:ni,studyDone:nd,studyMode});
+          saveStudy({selSub,selCh,studyIdx:ni,studyDone:nd,studyMode,studyStartIdx,studyCount});
           if(ni>=queue.length)clearStudy();
           set({studyDone:nd,studyIdx:ni,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});
         } else {
@@ -843,16 +971,14 @@ function renderStudy(){
           set({studyPhase:'answering',studyLocked:nl,studyInputs:ni2,studyCb:fi>=0?fi:0});
         }
       } else {
-        // 초성/통암기: actives가 단어 단위 → blank와 동일한 로직
         const allOk=actives.every(function(a,i){return (S.studyInputs[i]||'').trim()===a.value.trim();});
-        if(isMuk||allOk){
+        if(allOk){
           const nd=S.studyDone+1,ni=S.studyIdx+1;
-          saveStudy({selSub,selCh,studyIdx:ni,studyDone:nd,studyMode});
+          saveStudy({selSub,selCh,studyIdx:ni,studyDone:nd,studyMode,studyStartIdx,studyCount});
           if(ni>=queue.length)clearStudy();
           set({studyDone:nd,studyIdx:ni,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});
         } else {
-          const nl={};
-          actives.forEach(function(a,i){if((S.studyInputs[i]||'').trim()===a.value.trim())nl[i]=true;});
+          const nl={};actives.forEach(function(a,i){if((S.studyInputs[i]||'').trim()===a.value.trim())nl[i]=true;});
           const ni2=actives.map(function(a,i){return nl[i]?a.value:'';});
           const fi=ni2.findIndex(function(_,i){return !nl[i];});
           set({studyPhase:'answering',studyLocked:nl,studyInputs:ni2,studyCb:fi>=0?fi:0});
@@ -860,7 +986,6 @@ function renderStudy(){
       }
       return;
     }
-    // cho/muk: blank와 동일하게 순서대로 이동
     if(studyMode==='cho'||studyMode==='muk'){
       const next=nextUnlocked(S.studyCb+1);
       if(next<actives.length)set({studyCb:next});else set({studyPhase:'result'});
@@ -874,46 +999,58 @@ function renderStudy(){
   const bodyEl=renderQuizBody(parts,S.studyPhase,S.studyInputs,S.studyCb,S.studyLocked,ref,hi,ne,studyMode);
   setTimeout(()=>ref.el&&ref.el.focus(),80);
 
-  const isMuk=studyMode==='muk';
-  const isChoMode=studyMode==='cho';
-  // cho/muk: 단어 단위 flat 배열로 채점
   const correctNow=actives.filter(function(_,i){return (S.studyInputs[i]||'').trim()===actives[i].value.trim();}).length;
   const totalCount=actives.length;
+  const isMuk=studyMode==='muk';
+  const isChoMode=studyMode==='cho';
   const modeColor=isMuk?C.purple:isChoMode?C.teal:C.green;
   const modeCls=isMuk?'mb':isChoMode?'tb':'gb';
 
   const wrap=el('div',{class:'fade'});
-  // 모드 배지
-  wrap.appendChild(el('span',{class:`mode-badge ${isChoMode?'cho':'blank'}`},isChoMode?'초성 학습':'빈칸 학습'));
+  const modeNames={'blank':'빈칸 학습','cho':'초성 학습','muk':'통암기 학습'};
+  const mb=el('span',{class:'mode-badge',style:{color:modeColor,borderColor:modeColor,background:'rgba(0,0,0,.04)'}});
+  mb.textContent=modeNames[studyMode]||'학습';wrap.appendChild(mb);
+
   // 진행바
   const pb=el('div',{class:'flex',style:{marginBottom:'8px'}});
-  pb.appendChild(el('span',{style:{fontSize:'12px',color:C.muted,fontWeight:'700'}},`${sn} · ${cn}`));
-  const bar=el('div',{class:'progress-bar'});bar.appendChild(el('div',{class:'progress-fill',style:{width:`${progressPct}%`,background:modeColor}}));pb.appendChild(bar);
-  pb.appendChild(el('span',{style:{fontSize:'12px',color:modeColor,fontWeight:'800'}},`${S.studyDone}/${base.length} 완료`));
+  pb.appendChild(el('span',{style:{fontSize:'12px',color:C.muted,fontWeight:'700'}},sn+' · '+cn));
+  const bar=el('div',{class:'progress-bar'});
+  bar.appendChild(el('div',{class:'progress-fill',style:{width:progressPct+'%',background:modeColor}}));
+  pb.appendChild(bar);
+  pb.appendChild(el('span',{style:{fontSize:'12px',color:modeColor,fontWeight:'800'}},S.studyDone+'/'+queue.length+' 완료'));
   wrap.appendChild(pb);
-  if(Object.keys(S.studyLocked).length>0)wrap.appendChild(el('div',{class:'locked-notice'},`초록 빈칸은 이미 맞췄습니다 · 남은 ${unlockedCount}개`));
-  const qcard=el('div',{class:`quiz-card ${Object.keys(S.studyLocked).length>0?'rb':modeCls}`});
+
+  // 구간 표시
+  const rangeEl=el('div',{style:{fontSize:'11px',color:C.muted,marginBottom:'6px',fontWeight:'700'}});
+  rangeEl.textContent=(studyStartIdx+1)+'~'+(studyStartIdx+studyCount)+'번 카드';wrap.appendChild(rangeEl);
+
+  if(Object.keys(S.studyLocked).length>0){
+    const ln=el('div',{class:'locked-notice'});ln.textContent='초록 빈칸은 맞췄습니다 · 남은 '+unlockedCount+'개';wrap.appendChild(ln);
+  }
+  const qcard=el('div',{class:'quiz-card '+modeCls});
   qcard.appendChild(el('div',{style:{fontWeight:'800',fontSize:'20px',marginBottom:'10px',color:C.text}},card.title));
-  if(card.hint)qcard.appendChild(el('div',{class:'hint-box'},`힌트: ${card.hint}`));
+  if(card.hint)qcard.appendChild(el('div',{class:'hint-box'},'힌트: '+card.hint));
   qcard.appendChild(bodyEl);
+
   const footer=el('div',{style:{paddingTop:'12px',borderTop:'1px dashed #f0c8a0'}});
   if(S.studyPhase==='answering'){
     const fl=el('div',{class:'flex'});
-    {
-      const ulIdx=[...Array(actives.length).keys()].filter(i=>!S.studyLocked[i]);
-      const modeWord=isMuk?'통암기':isChoMode?'초성':'빈칸';
-      fl.appendChild(el('span',{style:{fontSize:'13px',color:C.muted,fontWeight:'700'}},`${modeWord} ${ulIdx.indexOf(S.studyCb)+1} / ${unlockedCount}`));
-      fl.appendChild(btn(nextUnlocked(S.studyCb+1)<actives.length?'다음':'채점',isMuk?'purple':isChoMode?'teal':'green',ne));
-    }
+    const ulIdx=actives.map(function(_,i){return i;}).filter(function(i){return !S.studyLocked[i];});
+    const modeWord=isMuk?'통암기':isChoMode?'초성':'빈칸';
+    fl.appendChild(el('span',{style:{fontSize:'13px',color:C.muted,fontWeight:'700'}},modeWord+' '+(ulIdx.indexOf(S.studyCb)+1)+' / '+unlockedCount));
+    fl.appendChild(btn(nextUnlocked(S.studyCb+1)<actives.length?'다음':'채점',isMuk?'purple':isChoMode?'teal':'green',ne));
     footer.appendChild(fl);
   } else {
     const fl=el('div',{class:'flex'});
-    fl.appendChild(el('span',{style:{fontWeight:'800'}},[el('span',{style:{color:correctNow===totalCount?C.green:C.red,fontSize:'18px'}},String(correctNow)),el('span',{style:{color:C.muted}},` / ${totalCount} 정답`)]));
+    fl.appendChild(el('span',{style:{fontWeight:'800'}},[
+      el('span',{style:{color:correctNow===totalCount?C.green:C.red,fontSize:'18px'}},String(correctNow)),
+      el('span',{style:{color:C.muted}},' / '+totalCount+' 정답')
+    ]));
     if(isMuk){
       fl.appendChild(btn('다음 카드','purple',function(){
         const nd2=S.studyDone+1,ni2=S.studyIdx+1;
-        saveStudy({selSub:selSub,selCh:selCh,studyIdx:ni2,studyDone:nd2,studyMode:studyMode});
-        if(ni2>=S.studyQueue.length)clearStudy();
+        saveStudy({selSub,selCh,studyIdx:ni2,studyDone:nd2,studyMode,studyStartIdx,studyCount});
+        if(ni2>=queue.length)clearStudy();
         set({studyDone:nd2,studyIdx:ni2,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});
       }));
     } else {
@@ -925,7 +1062,6 @@ function renderStudy(){
   qcard.appendChild(footer);wrap.appendChild(qcard);return wrap;
 }
 
-// ── Test ─────────────────────────────────────────────────────────────────────
 function renderTest(){
   const{data,testStarted,testDeck,testIdx,testPhase,testInputs,testCb,testResults,testSelSub,testSelCh}=S;
   const{subjects,cards}=data;const allCh=getChapters(subjects,testSelSub);
@@ -1299,7 +1435,7 @@ document.addEventListener('keydown',function(e){
     const card=S.studyQueue[S.studyIdx];if(!card)return;
     const parts=parseForMode(card.body,S.studyMode);const actives=getActiveParts(parts,S.studyMode);
     const allOk=actives.every((a,i)=>(S.studyInputs[i]||'').trim()===a.value.trim());
-    if(allOk){const nd=S.studyDone+1,ni=S.studyIdx+1;saveStudy({selSub:S.selSub,selCh:S.selCh,studyIdx:ni,studyDone:nd,studyMode:S.studyMode});if(ni>=S.studyQueue.length)clearStudy();set({studyDone:nd,studyIdx:ni,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});}
+    if(allOk){const nd=S.studyDone+1,ni=S.studyIdx+1;saveStudy({selSub:S.selSub,selCh:S.selCh,studyIdx:ni,studyDone:nd,studyMode:S.studyMode,studyStartIdx:S.studyStartIdx,studyCount:S.studyCount});if(ni>=S.studyQueue.length)clearStudy();set({studyDone:nd,studyIdx:ni,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});}
     else{const nl={};actives.forEach(function(a,i){if((S.studyInputs[i]||'').trim()===a.value.trim())nl[i]=true;});const ni2=actives.map(function(a,i){return nl[i]?a.value:'';});const fi=ni2.findIndex(function(_,i){return !nl[i];});set({studyPhase:'answering',studyLocked:nl,studyInputs:ni2,studyCb:fi>=0?fi:0});}
   } else if(v==='test'&&S.testPhase==='result'){
     const card=S.testDeck[S.testIdx];if(!card)return;
