@@ -137,14 +137,23 @@ function getNextReview(card,quality){
 }
 
 // ── Storage ──────────────────────────────────────────────────────────────────
-const KEY='blankquiz_v1';const SKEY='blankquiz_study';
+const KEY='blankquiz_v1';const SKEY_PREFIX='blankquiz_study_';
 let _mem={subjects:[],cards:[]};
 function loadData(){try{const r=localStorage.getItem(KEY)||localStorage.getItem('bq_v1');if(r)return JSON.parse(r);}catch{}return _mem;}
 function saveData(d){_mem=d;try{localStorage.setItem(KEY,JSON.stringify(d));}catch{}}
-var _studyMem=null;
-function saveStudy(p){_studyMem=p;try{localStorage.setItem(SKEY,JSON.stringify(p));}catch{}}
-function loadStudy(){if(_studyMem)return _studyMem;try{const r=localStorage.getItem(SKEY);if(r)return JSON.parse(r);}catch{}return null;}
-function clearStudy(){_studyMem=null;try{localStorage.removeItem(SKEY);}catch{}}
+var _studyMem={};
+function _skey(sub,ch){return SKEY_PREFIX+(sub||'all')+'_'+(ch||'all');}
+function saveStudy(p){const k=_skey(p.selSub,p.selCh);_studyMem[k]=p;try{localStorage.setItem(k,JSON.stringify(p));}catch{}}
+function loadStudy(sub,ch){
+  const k=_skey(sub!==undefined?sub:S.selSub, ch!==undefined?ch:S.selCh);
+  if(_studyMem[k])return _studyMem[k];
+  try{const r=localStorage.getItem(k);if(r){const d=JSON.parse(r);_studyMem[k]=d;return d;}}catch{}
+  return null;
+}
+function clearStudy(sub,ch){
+  const k=_skey(sub!==undefined?sub:S.selSub, ch!==undefined?ch:S.selCh);
+  delete _studyMem[k];try{localStorage.removeItem(k);}catch{}
+}
 const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
 const shuffle=a=>[...a].sort(()=>Math.random()-.5);
 
@@ -436,10 +445,10 @@ function renderSubjectCard(sub,cards){
       const subjCards=S.data.cards.filter(c=>c.subjectId===sub.id);
       if(subjCards.length>0){
         subjBtnRow.appendChild(btn('과목 전체 학습','small green',()=>{
-          const saved=loadStudy();
+          const saved=loadStudy(sub.id,null);
           const same=saved&&saved.selSub===sub.id&&!saved.selCh&&(saved.studyIdx>0||saved.studyDone>0||saved.completed);
           if(same){set({view:'study',selSub:sub.id,selCh:null,studyResumePrompt:true});}
-          else{clearStudy();set({view:'study',selSub:sub.id,selCh:null,studyCount:0,studyMode:'blank',studyQueue:[],studyIdx:0,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{},studyDone:0,studyResumePrompt:false});}
+          else{clearStudy(sub.id,null);set({view:'study',selSub:sub.id,selCh:null,studyCount:0,studyMode:'blank',studyQueue:[],studyIdx:0,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{},studyDone:0,studyResumePrompt:false});}
         }));
       }
       if(subjBtnRow.children.length>0)wrapper.appendChild(subjBtnRow);
@@ -460,12 +469,12 @@ function renderSubjectCard(sub,cards){
       if(dueCnt>0)row.appendChild(el('span',{class:'rbadge'},`복습 ${dueCnt}`));
       row.appendChild(btn('+ 카드','small',()=>set({view:'create',selSub:sub.id,selCh:ch.id,cTitle:'',cHint:'',cBody:'',cPreview:false})));
       row.appendChild(btn('학습','small green',()=>{
-        const saved=loadStudy();
+        const saved=loadStudy(sub.id,ch.id);
         const sameCh=saved&&saved.selSub===sub.id&&saved.selCh===ch.id&&(saved.studyIdx>0||saved.studyDone>0||saved.completed);
         if(sameCh){
           set({view:'study',selSub:sub.id,selCh:ch.id,studyResumePrompt:true});
         } else {
-          clearStudy();
+          clearStudy(sub.id,ch.id);
           set({view:'study',selSub:sub.id,selCh:ch.id,
             studyMode:'blank',studyCount:0,studyStartIdx:0,studyQueue:[],studyIdx:0,studyPhase:'answering',
             studyInputs:[],studyCb:0,studyLocked:{},studyDone:0,
