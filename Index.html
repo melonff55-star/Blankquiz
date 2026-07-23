@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>BLANKQUIZ</title>
 <style>
+
 *{box-sizing:border-box;margin:0;padding:0}
 body{background-color:#a8c8e8;background-image:radial-gradient(circle,#fff 2px,transparent 2px);background-size:22px 22px;font-family:sans-serif;color:#3d2b1f;min-height:100vh;}
 input,textarea,select{font-family:sans-serif;box-sizing:border-box}
@@ -114,1378 +115,1970 @@ textarea.inp{resize:vertical;line-height:1.8;display:block}
 /* 통암기 모드 */
 .quiz-card.mb{border-color:rgba(155,127,212,.3)}
 .mode-badge.muk{background:rgba(155,127,212,.15);color:#9b7fd4;border:1px solid #9b7fd4}
+
 </style>
 </head>
 <body>
 <div id="app"></div>
 <script>
-// ── 색상 ────────────────────────────────────────────────────────────────────
-const C={green:'#5cb85c',red:'#e05050',blue:'#5b9bd5',accent:'#e07b6a',purple:'#9b7fd4',teal:'#3aafa9',yellow:'#f9e07a',muted:'#9a7c6e',text:'#3d2b1f',border:'#f0c8a0',soft:'#d4ecc0',surfAlt:'#f0f9e8',bg:'#fffef5'};
-const REV_DAILY=20; // 하루 복습 기본 할당량
-
-// ── SM-2 ────────────────────────────────────────────────────────────────────
-// 망각곡선 기반 복습 주기 (학습과 분리 - 복습에서만 호출)
-const REV_INTERVALS=[1,3,7,14,30,60,120];
-function getNextReview(card,quality){
-  // quality: 0=오답, 1=부분정답, 2=정답
-  let reps=card.reps||0;
-  if(quality===0){reps=0;}
-  else{reps=Math.min(reps+1,REV_INTERVALS.length-1);}
-  const interval=REV_INTERVALS[reps];
-  const d=new Date();d.setDate(d.getDate()+interval);
-  return{interval,reps,nextReview:d.toISOString(),lastReview:new Date().toISOString()};
+const C = {
+  green: "#5cb85c",
+  red: "#e05050",
+  blue: "#5b9bd5",
+  accent: "#e07b6a",
+  purple: "#9b7fd4",
+  teal: "#3aafa9",
+  yellow: "#f9e07a",
+  muted: "#9a7c6e",
+  text: "#3d2b1f",
+  border: "#f0c8a0",
+  soft: "#d4ecc0",
+  surfAlt: "#f0f9e8",
+  bg: "#fffef5"
+};
+const STEP_INTERVALS = {
+  1: 1,
+  2: 6,
+  3: 7,
+  4: 16,
+  5: 30
+};
+const MAX_REPS = 6;
+function getNextReview(card, quality) {
+  let reps = card.reps || 0;
+  if (quality === 0) {
+    reps = 0;
+  } else {
+    reps = reps + 1;
+  }
+  let isGraduated = false;
+  if (reps >= MAX_REPS) {
+    isGraduated = true;
+    reps = MAX_REPS;
+  }
+  const interval = isGraduated ? 99999 : STEP_INTERVALS[reps] || 1;
+  const d = /* @__PURE__ */ new Date();
+  d.setDate(d.getDate() + interval);
+  return { interval, reps, nextReview: d.toISOString(), lastReview: (/* @__PURE__ */ new Date()).toISOString(), isGraduated };
 }
-
-// ── Storage ──────────────────────────────────────────────────────────────────
-const KEY='blankquiz_v1';const SKEY_PREFIX='blankquiz_study_';
-let _mem={subjects:[],cards:[]};
-function loadData(){try{const r=localStorage.getItem(KEY)||localStorage.getItem('bq_v1');if(r)return JSON.parse(r);}catch{}return _mem;}
-function saveData(d){_mem=d;try{localStorage.setItem(KEY,JSON.stringify(d));}catch{}}
-var _studyMem={};
-function _skey(sub,ch){return SKEY_PREFIX+(sub||'all')+'_'+(ch||'all');}
-function saveStudy(p){const k=_skey(p.selSub,p.selCh);_studyMem[k]=p;try{localStorage.setItem(k,JSON.stringify(p));}catch{}}
-function loadStudy(sub,ch){
-  const k=_skey(sub!==undefined?sub:S.selSub, ch!==undefined?ch:S.selCh);
-  if(_studyMem[k])return _studyMem[k];
-  try{const r=localStorage.getItem(k);if(r){const d=JSON.parse(r);_studyMem[k]=d;return d;}}catch{}
+const KEY = "blankquiz_v1";
+const SKEY_PREFIX = "blankquiz_study_";
+let _mem = { subjects: [], cards: [] };
+function loadData() {
+  try {
+    const r = localStorage.getItem(KEY) || localStorage.getItem("bq_v1");
+    if (r) return JSON.parse(r);
+  } catch {
+  }
+  return _mem;
+}
+function saveData(d) {
+  _mem = d;
+  try {
+    localStorage.setItem(KEY, JSON.stringify(d));
+  } catch {
+  }
+}
+var _studyMem = {};
+function _skey(sub, ch) {
+  return SKEY_PREFIX + (sub || "all") + "_" + (ch || "all");
+}
+function saveStudy(p) {
+  const k = _skey(p.selSub, p.selCh);
+  _studyMem[k] = p;
+  try {
+    localStorage.setItem(k, JSON.stringify(p));
+  } catch {
+  }
+}
+function loadStudy(sub, ch) {
+  const k = _skey(sub !== void 0 ? sub : S.selSub, ch !== void 0 ? ch : S.selCh);
+  if (_studyMem[k]) return _studyMem[k];
+  try {
+    const r = localStorage.getItem(k);
+    if (r) {
+      const d = JSON.parse(r);
+      _studyMem[k] = d;
+      return d;
+    }
+  } catch {
+  }
   return null;
 }
-function clearStudy(sub,ch){
-  const k=_skey(sub!==undefined?sub:S.selSub, ch!==undefined?ch:S.selCh);
-  delete _studyMem[k];try{localStorage.removeItem(k);}catch{}
-}
-const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
-const shuffle=a=>[...a].sort(()=>Math.random()-.5);
-
-// ── 초성 추출 ────────────────────────────────────────────────────────────────
-const CHO=['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
-function toChosung(str){
-  // [[...]] 안의 내용은 변환하지 않고 그대로 유지
-  return str.replace(new RegExp('\\[\\[([^\\]]+)\\]\\]','g'),'[$1]').split('').map(ch=>{
-    const code=ch.charCodeAt(0);
-    if(code>=0xAC00&&code<=0xD7A3)return CHO[Math.floor((code-0xAC00)/28/21)];
-    if(ch===' ')return ' ';
-    return ch;
-  }).join('');
-}
-
-// ── 파싱 ─────────────────────────────────────────────────────────────────────
-// 원본 body에서 [[빈칸]]과 {초성}을 파싱 (카드 저장/목록용)
-function parseBody(text){
-  const parts=[],re=new RegExp('\\[\\[([^\\]]+)\\]\\]|\\{([^}]+)\\}','g');let last=0,m;
-  while((m=re.exec(text))!==null){
-    if(m.index>last)parts.push({type:'text',value:text.slice(last,m.index)});
-    if(m[1]!==undefined)parts.push({type:'blank',value:m[1]});
-    else parts.push({type:'cho',value:m[2]});
-    last=m.index+m[0].length;
+function clearStudy(sub, ch) {
+  const k = _skey(sub !== void 0 ? sub : S.selSub, ch !== void 0 ? ch : S.selCh);
+  delete _studyMem[k];
+  try {
+    localStorage.removeItem(k);
+  } catch {
   }
-  if(last<text.length)parts.push({type:'text',value:text.slice(last)});
+}
+const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+const shuffle = (a) => [...a].sort(() => Math.random() - 0.5);
+const CHO = ["\u3131", "\u3132", "\u3134", "\u3137", "\u3138", "\u3139", "\u3141", "\u3142", "\u3143", "\u3145", "\u3146", "\u3147", "\u3148", "\u3149", "\u314A", "\u314B", "\u314C", "\u314D", "\u314E"];
+function toChosung(str) {
+  return str.replace(new RegExp("\\[\\[([^\\]]+)\\]\\]", "g"), "[$1]").split("").map((ch) => {
+    const code = ch.charCodeAt(0);
+    if (code >= 44032 && code <= 55203) return CHO[Math.floor((code - 44032) / 28 / 21)];
+    if (ch === " ") return " ";
+    return ch;
+  }).join("");
+}
+function parseBody(text) {
+  const parts = [], re = new RegExp("\\[\\[([^\\]]+)\\]\\]|\\{([^}]+)\\}", "g");
+  let last = 0, m;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) parts.push({ type: "text", value: text.slice(last, m.index) });
+    if (m[1] !== void 0) parts.push({ type: "blank", value: m[1] });
+    else parts.push({ type: "cho", value: m[2] });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) parts.push({ type: "text", value: text.slice(last) });
   return parts;
 }
-
-// 모드별 파싱:
-// 빈칸모드: {}와 그 안 내용 제거 → [[]] 기준 파싱
-// 초성모드: [[]]와 그 안 내용 제거 → {} 기준 파싱, value는 toChosung 힌트로 표시
-function parseForMode(text,mode){
-  if(mode==='blank'){
-    const cleaned=text.replace(new RegExp('\\{([^}]*)\\}','g'),'$1');
-    const parts=[],re=new RegExp('\\[\\[([^\\]]+)\\]\\]','g');let last=0,m;
-    while((m=re.exec(cleaned))!==null){
-      if(m.index>last)parts.push({type:'text',value:cleaned.slice(last,m.index)});
-      parts.push({type:'blank',value:m[1]});
-      last=m.index+m[0].length;
+function parseForMode(text, mode) {
+  if (mode === "blank") {
+    const cleaned2 = text.replace(new RegExp("\\{([^}]*)\\}", "g"), "$1");
+    const parts2 = [], re2 = new RegExp("\\[\\[([^\\]]+)\\]\\]", "g");
+    let last2 = 0, m2;
+    while ((m2 = re2.exec(cleaned2)) !== null) {
+      if (m2.index > last2) parts2.push({ type: "text", value: cleaned2.slice(last2, m2.index) });
+      parts2.push({ type: "blank", value: m2[1] });
+      last2 = m2.index + m2[0].length;
     }
-    if(last<cleaned.length)parts.push({type:'text',value:cleaned.slice(last)});
-    return parts;
+    if (last2 < cleaned2.length) parts2.push({ type: "text", value: cleaned2.slice(last2) });
+    return parts2;
   }
-  // cho / muk: {} 파싱
-  const cleaned=text.replace(new RegExp('\\[\\[([^\\]]+)\\]\\]','g'),'$1');
-  const parts=[],re=new RegExp('\\{([^}]+)\\}','g');let last=0,m;
-  while((m=re.exec(cleaned))!==null){
-    if(m.index>last)parts.push({type:'text',value:cleaned.slice(last,m.index)});
-    if(mode==='cho'){
-      // 초성: 단어+줄바꿈 기준으로 분리
-      const lines=m[1].split('\n');
-      lines.forEach(function(line,li){
-        const words=line.split(' ').filter(function(w){return w;});
-        words.forEach(function(w,wi){
-          parts.push({type:'cho',value:w,hint:toChosung(w)});
-          if(wi<words.length-1)parts.push({type:'cho_sp'});
+  const cleaned = text.replace(new RegExp("\\[\\[([^\\]]+)\\]\\]", "g"), "$1");
+  const parts = [], re = new RegExp("\\{([^}]+)\\}", "g");
+  let last = 0, m;
+  while ((m = re.exec(cleaned)) !== null) {
+    if (m.index > last) parts.push({ type: "text", value: cleaned.slice(last, m.index) });
+    if (mode === "cho") {
+      const lines = m[1].split("\n");
+      lines.forEach(function(line, li) {
+        const words = line.split(" ").filter(function(w) {
+          return w;
         });
-        if(li<lines.length-1)parts.push({type:'cho_br'});
+        words.forEach(function(w, wi) {
+          parts.push({ type: "cho", value: w, hint: toChosung(w) });
+          if (wi < words.length - 1) parts.push({ type: "cho_sp" });
+        });
+        if (li < lines.length - 1) parts.push({ type: "cho_br" });
       });
     } else {
-      // 통암기: {} 단위로 하나의 파트 (줄바꿈은 cho_br로)
-      const lines=m[1].split('\n');
-      lines.forEach(function(line,li){
-        parts.push({type:'cho',value:line,hint:''});
-        if(li<lines.length-1)parts.push({type:'cho_br'});
+      const lines = m[1].split("\n");
+      lines.forEach(function(line, li) {
+        parts.push({ type: "cho", value: line, hint: "" });
+        if (li < lines.length - 1) parts.push({ type: "cho_br" });
       });
     }
-    last=m.index+m[0].length;
+    last = m.index + m[0].length;
   }
-  if(last<cleaned.length)parts.push({type:'text',value:cleaned.slice(last)});
+  if (last < cleaned.length) parts.push({ type: "text", value: cleaned.slice(last) });
   return parts;
 }
-
-function getActiveParts(parts,mode){
-  if(mode==='blank')return parts.filter(function(p){return p.type==='blank';});
-  if(mode==='cho')return parts.filter(function(p){return p.type==='cho';});
-  return parts.filter(function(p){return p.type==='blank'||p.type==='cho';});
+function getActiveParts(parts, mode) {
+  if (mode === "blank") return parts.filter(function(p) {
+    return p.type === "blank";
+  });
+  if (mode === "cho") return parts.filter(function(p) {
+    return p.type === "cho";
+  });
+  return parts.filter(function(p) {
+    return p.type === "blank" || p.type === "cho";
+  });
 }
-const isDue=c=>!c.nextReview||new Date(c.nextReview)<=new Date();
-function getSN(subjects,card){const s=subjects.find(function(s){return s.id===card.subjectId;});return s?s.name:'';}
-function getCN(subjects,card){const s=subjects.find(function(s){return s.id===card.subjectId;});if(!s||!s.chapters)return '';const c=s.chapters.find(function(c){return c.id===card.chapterId;});return c?c.name:'';}
-function getChapters(subjects,subId){const s=subjects.find(function(s){return s.id===subId;});return s&&s.chapters?s.chapters:[];}
-
-// ── State ────────────────────────────────────────────────────────────────────
-let S={
-  data:loadData(),view:'home',
-  selSub:null,selCh:null,
-  cTitle:'',cHint:'',cBody:'',cPreview:false,
+const isDue = (c) => !c.nextReview || new Date(c.nextReview) <= /* @__PURE__ */ new Date();
+function getSN(subjects, card) {
+  const s = subjects.find(function(s2) {
+    return s2.id === card.subjectId;
+  });
+  return s ? s.name : "";
+}
+function getCN(subjects, card) {
+  const s = subjects.find(function(s2) {
+    return s2.id === card.subjectId;
+  });
+  if (!s || !s.chapters) return "";
+  const c = s.chapters.find(function(c2) {
+    return c2.id === card.chapterId;
+  });
+  return c ? c.name : "";
+}
+function getChapters(subjects, subId) {
+  const s = subjects.find(function(s2) {
+    return s2.id === subId;
+  });
+  return s && s.chapters ? s.chapters : [];
+}
+let S = {
+  data: loadData(),
+  view: "home",
+  selSub: null,
+  selCh: null,
+  cTitle: "",
+  cHint: "",
+  cBody: "",
+  cPreview: false,
   // 학습
-  studyMode:'blank', // 'blank'|'cho'|'muk'
-  studyQueue:[],studyIdx:0,studyPhase:'answering',
-  studyInputs:[],studyCb:0,studyLocked:{},studyDone:0,
-  studyResumePrompt:false,
+  studyMode: "blank",
+  // 'blank'|'cho'|'muk'
+  studyQueue: [],
+  studyIdx: 0,
+  studyPhase: "answering",
+  studyInputs: [],
+  studyCb: 0,
+  studyLocked: {},
+  studyDone: 0,
+  studyResumePrompt: false,
+  studyCount: 0,
+  studyStartIdx: 0,
   // 테스트
-  testStarted:false,testDeck:[],testIdx:0,testPhase:'answering',
-  testInputs:[],testCb:0,testResults:[],testSelSub:null,testSelCh:null,
+  testStarted: false,
+  testDeck: [],
+  testIdx: 0,
+  testPhase: "answering",
+  testInputs: [],
+  testCb: 0,
+  testResults: [],
+  testSelSub: null,
+  testSelCh: null,
   // 복습
-  revStarted:false,revDeck:[],revIdx:0,revPhase:'answering',revRound:1,revMode:'two',revLocked:{},
-  revInputs:[],revCb:0,revResults:[],revSelSub:null,revSelCh:null,
-  revNewCount:10,
+  revStarted: false,
+  revDeck: [],
+  revIdx: 0,
+  revPhase: "answering",
+  revRound: 1,
+  revMode: "two",
+  revLocked: {},
+  revInputs: [],
+  revCb: 0,
+  revResults: [],
+  revSelSub: null,
+  revSelCh: null,
+  revNewCount: 10,
   // 카드 목록
-  cardFs:'',cardFc:'',cardQ:'',cardSort:'chapter',cardEdit:null,cardExpanded:null,
+  cardFs: "",
+  cardFc: "",
+  cardQ: "",
+  cardSort: "chapter",
+  cardEdit: null,
+  cardExpanded: null
 };
-function persist(data){S.data=data;saveData(data);render();}
-function set(patch){Object.assign(S,patch);render();}
-
-// ── DOM 헬퍼 ─────────────────────────────────────────────────────────────────
-function el(tag,attrs,children){
-  const e=document.createElement(tag);
-  for(const[k,v]of Object.entries(attrs||{})){
-    if(k==='class')e.className=v;
-    else if(k==='style'&&typeof v==='object')Object.assign(e.style,v);
-    else if(k.startsWith('on'))e.addEventListener(k.slice(2).toLowerCase(),v);
-    else e.setAttribute(k,v);
+function persist(data) {
+  S.data = data;
+  saveData(data);
+  render();
+}
+function set(patch) {
+  Object.assign(S, patch);
+  render();
+}
+function el(tag, attrs, children) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") e.className = v;
+    else if (k === "style" && typeof v === "object") Object.assign(e.style, v);
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2).toLowerCase(), v);
+    else e.setAttribute(k, v);
   }
-  if(typeof children==='string')e.innerHTML=children;
-  else if(Array.isArray(children))children.flat().filter(Boolean).forEach(c=>e.appendChild(typeof c==='string'?document.createTextNode(c):c));
-  else if(children instanceof Node)e.appendChild(children);
+  if (typeof children === "string") e.innerHTML = children;
+  else if (Array.isArray(children)) children.flat().filter(Boolean).forEach((c) => e.appendChild(typeof c === "string" ? document.createTextNode(c) : c));
+  else if (children instanceof Node) e.appendChild(children);
   return e;
 }
-function btn(text,cls,onClick){const b=el('button',{class:'btn '+(cls||''),onClick});b.textContent=text;return b;}
-function lbl(text){return el('div',{class:'lbl'},text);}
-function textWithBreaks(val){const sp=document.createElement('span');val.split('\n').forEach((l,i,a)=>{sp.appendChild(document.createTextNode(l));if(i<a.length-1)sp.appendChild(document.createElement('br'));});return sp;}
-function sectionEl(label,children){return el('div',{class:'section'},[el('div',{class:'section-label'},[el('div',{class:'section-bar'}),el('div',{class:'section-title'},label)]),...(Array.isArray(children)?children:[children])]);}
-
-// ── 확인 모달 ────────────────────────────────────────────────────────────────
-// ── 텍스트 일괄 생성 ─────────────────────────────────────────────────────────
-function parseBulkText(text){
-  const lines=text.split('\n');
-  const cards=[];let cur=null;
-  for(let i=0;i<lines.length;i++){
-    const line=lines[i];
-    if(!line.trim())continue;
-    if(line.indexOf('\t')>=0){
-      if(cur)cards.push(cur);
-      const parts=line.split('\t');
-      cur={title:parts[0].trim(),hint:(parts[1]||'').trim(),body:(parts.slice(2).join('\t')).trim()};
-    } else {
-      if(cur)cur.body=cur.body?(cur.body+'\n'+line.trim()):line.trim();
-    }
-  }
-  if(cur)cards.push(cur);
-  return cards.filter(function(c){return c.title&&c.body;});
+function btn(text, cls, onClick) {
+  const b = el("button", { class: "btn " + (cls || ""), onClick });
+  b.textContent = text;
+  return b;
 }
-function showBulkModal(subjects,cards){
-  const bg=el('div',{style:{position:'fixed',inset:'0',background:'rgba(61,43,31,.4)',zIndex:'2000',display:'flex',alignItems:'center',justifyContent:'center',padding:'16px'}});
-  const box=el('div',{class:'bulk-box'});
-  bg.appendChild(box);document.body.appendChild(bg);
-  bg.addEventListener('click',function(e){if(e.target===bg)document.body.removeChild(bg);});
-
-  // 헤더
-  const hdr=el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'20px'}});
-  const ht=el('div',{style:{fontWeight:'800',fontSize:'18px',color:C.accent}});ht.textContent='텍스트로 일괄 생성';hdr.appendChild(ht);
-  const xb=el('button',{style:{background:'none',border:'none',color:C.accent,fontSize:'20px',cursor:'pointer',lineHeight:'1'}});xb.textContent='X';
-  xb.addEventListener('click',function(){document.body.removeChild(bg);});hdr.appendChild(xb);
-  box.appendChild(hdr);
-
-  // 과목/챕터
-  const grid=el('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'16px'}});
-  const subSel=el('select',{class:'inp'});subSel.appendChild(el('option',{value:''},'-- 과목 선택 --'));
-  subjects.forEach(function(s){const o=el('option',{value:s.id});o.textContent=s.name;if(s.id===S.selSub)o.selected=true;subSel.appendChild(o);});
-  const chSel=el('select',{class:'inp'});
-  function updateCh(){
-    chSel.innerHTML='';chSel.appendChild(el('option',{value:''},'-- 챕터 선택 --'));
-    const chs=getChapters(subjects,subSel.value);
-    chs.forEach(function(c){const o=el('option',{value:c.id});o.textContent=c.name;if(c.id===S.selCh)o.selected=true;chSel.appendChild(o);});
-    chSel.disabled=!subSel.value;
-  }
-  subSel.addEventListener('change',updateCh);updateCh();
-  const d1=el('div');d1.appendChild(lbl('과목'));d1.appendChild(subSel);
-  const d2=el('div');d2.appendChild(lbl('챕터'));d2.appendChild(chSel);
-  grid.appendChild(d1);grid.appendChild(d2);box.appendChild(grid);
-
-  // 텍스트 입력
-  box.appendChild(lbl('텍스트 (제목[탭]힌트[탭]본문)'));
-  const ta=el('textarea',{class:'inp',rows:'7',style:{fontFamily:'monospace',fontSize:'12px',marginBottom:'10px'}});
-  ta.placeholder='민법 1조\t\t민사에 관하여 [[관습법]]에 의하고\n[[관습법]]이 없으면 [[조리]]에 의한다.';
-  box.appendChild(ta);
-
-  // 미리보기 영역
-  const previewWrap=el('div',{});
-  box.appendChild(previewWrap);
-
-  // 미리보기 버튼
-  const parseBtn=btn('미리보기','',function(){
-    previewWrap.innerHTML='';
-    const parsed=parseBulkText(ta.value);
-    if(!parsed.length){
-      const em=el('div',{style:{color:C.muted,fontSize:'13px',padding:'8px 0'}});em.textContent='카드를 찾을 수 없습니다.';previewWrap.appendChild(em);return;
+function lbl(text) {
+  return el("div", { class: "lbl" }, text);
+}
+function textWithBreaks(val) {
+  const sp = document.createElement("span");
+  val.split("\n").forEach((l, i, a) => {
+    sp.appendChild(document.createTextNode(l));
+    if (i < a.length - 1) sp.appendChild(document.createElement("br"));
+  });
+  return sp;
+}
+function sectionEl(label, children) {
+  return el("div", { class: "section" }, [el("div", { class: "section-label" }, [el("div", { class: "section-bar" }), el("div", { class: "section-title" }, label)]), ...Array.isArray(children) ? children : [children]]);
+}
+function parseBulkText(text) {
+  const lines = text.split("\n");
+  const cards = [];
+  let cur = null;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim()) continue;
+    if (line.indexOf("	") >= 0) {
+      if (cur) cards.push(cur);
+      const parts = line.split("	");
+      cur = { title: parts[0].trim(), hint: (parts[1] || "").trim(), body: parts.slice(2).join("	").trim() };
+    } else {
+      if (cur) cur.body = cur.body ? cur.body + "\n" + line.trim() : line.trim();
     }
-    const cnt=el('div',{style:{fontSize:'13px',fontWeight:'800',color:C.accent,marginBottom:'12px',marginTop:'16px'}});
-    cnt.textContent=parsed.length+'개 카드 생성 예정';previewWrap.appendChild(cnt);
-    parsed.forEach(function(card,idx){
-      const pc=el('div',{class:'pcard'});
-      const top=el('div',{style:{display:'flex',alignItems:'center',gap:'6px',marginBottom:'4px'}});
-      const num=el('span',{style:{fontSize:'11px',color:C.muted,fontWeight:'800'}});num.textContent='#'+(idx+1);top.appendChild(num);
-      var blanks=0,chos=0;
-      for(var ci=0;ci<card.body.length-1;ci++){if(card.body[ci]==='['&&card.body[ci+1]==='[')blanks++;if(card.body[ci]==='{')chos++;}
-      if(blanks>0){const t=el('span',{class:'ptag'});t.textContent='빈칸 '+blanks+'개';top.appendChild(t);}
-      if(chos>0){const t=el('span',{class:'ptag'});t.textContent='초성 '+chos+'개';top.appendChild(t);}
+  }
+  if (cur) cards.push(cur);
+  return cards.filter(function(c) {
+    return c.title && c.body;
+  });
+}
+function showBulkModal(subjects, cards) {
+  const bg = el("div", { style: { position: "fixed", inset: "0", background: "rgba(61,43,31,.4)", zIndex: "2000", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" } });
+  const box = el("div", { class: "bulk-box" });
+  bg.appendChild(box);
+  document.body.appendChild(bg);
+  bg.addEventListener("click", function(e) {
+    if (e.target === bg) document.body.removeChild(bg);
+  });
+  const hdr = el("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" } });
+  const ht = el("div", { style: { fontWeight: "800", fontSize: "18px", color: C.accent } });
+  ht.textContent = "\uD14D\uC2A4\uD2B8\uB85C \uC77C\uAD04 \uC0DD\uC131";
+  hdr.appendChild(ht);
+  const xb = el("button", { style: { background: "none", border: "none", color: C.accent, fontSize: "20px", cursor: "pointer", lineHeight: "1" } });
+  xb.textContent = "X";
+  xb.addEventListener("click", function() {
+    document.body.removeChild(bg);
+  });
+  hdr.appendChild(xb);
+  box.appendChild(hdr);
+  const grid = el("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "16px" } });
+  const subSel = el("select", { class: "inp" });
+  subSel.appendChild(el("option", { value: "" }, "-- \uACFC\uBAA9 \uC120\uD0DD --"));
+  subjects.forEach(function(s) {
+    const o = el("option", { value: s.id });
+    o.textContent = s.name;
+    if (s.id === S.selSub) o.selected = true;
+    subSel.appendChild(o);
+  });
+  const chSel = el("select", { class: "inp" });
+  function updateCh() {
+    chSel.innerHTML = "";
+    chSel.appendChild(el("option", { value: "" }, "-- \uCC55\uD130 \uC120\uD0DD --"));
+    const chs = getChapters(subjects, subSel.value);
+    chs.forEach(function(c) {
+      const o = el("option", { value: c.id });
+      o.textContent = c.name;
+      if (c.id === S.selCh) o.selected = true;
+      chSel.appendChild(o);
+    });
+    chSel.disabled = !subSel.value;
+  }
+  subSel.addEventListener("change", updateCh);
+  updateCh();
+  const d1 = el("div");
+  d1.appendChild(lbl("\uACFC\uBAA9"));
+  d1.appendChild(subSel);
+  const d2 = el("div");
+  d2.appendChild(lbl("\uCC55\uD130"));
+  d2.appendChild(chSel);
+  grid.appendChild(d1);
+  grid.appendChild(d2);
+  box.appendChild(grid);
+  box.appendChild(lbl("\uD14D\uC2A4\uD2B8 (\uC81C\uBAA9[\uD0ED]\uD78C\uD2B8[\uD0ED]\uBCF8\uBB38)"));
+  const ta = el("textarea", { class: "inp", rows: "7", style: { fontFamily: "monospace", fontSize: "12px", marginBottom: "10px" } });
+  ta.placeholder = "\uBBFC\uBC95 1\uC870		\uBBFC\uC0AC\uC5D0 \uAD00\uD558\uC5EC [[\uAD00\uC2B5\uBC95]]\uC5D0 \uC758\uD558\uACE0\n[[\uAD00\uC2B5\uBC95]]\uC774 \uC5C6\uC73C\uBA74 [[\uC870\uB9AC]]\uC5D0 \uC758\uD55C\uB2E4.";
+  box.appendChild(ta);
+  const previewWrap = el("div", {});
+  box.appendChild(previewWrap);
+  const parseBtn = btn("\uBBF8\uB9AC\uBCF4\uAE30", "", function() {
+    previewWrap.innerHTML = "";
+    const parsed = parseBulkText(ta.value);
+    if (!parsed.length) {
+      const em = el("div", { style: { color: C.muted, fontSize: "13px", padding: "8px 0" } });
+      em.textContent = "\uCE74\uB4DC\uB97C \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.";
+      previewWrap.appendChild(em);
+      return;
+    }
+    const cnt = el("div", { style: { fontSize: "13px", fontWeight: "800", color: C.accent, marginBottom: "12px", marginTop: "16px" } });
+    cnt.textContent = parsed.length + "\uAC1C \uCE74\uB4DC \uC0DD\uC131 \uC608\uC815";
+    previewWrap.appendChild(cnt);
+    parsed.forEach(function(card, idx) {
+      const pc = el("div", { class: "pcard" });
+      const top = el("div", { style: { display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" } });
+      const num = el("span", { style: { fontSize: "11px", color: C.muted, fontWeight: "800" } });
+      num.textContent = "#" + (idx + 1);
+      top.appendChild(num);
+      var blanks = 0, chos = 0;
+      for (var ci = 0; ci < card.body.length - 1; ci++) {
+        if (card.body[ci] === "[" && card.body[ci + 1] === "[") blanks++;
+        if (card.body[ci] === "{") chos++;
+      }
+      if (blanks > 0) {
+        const t = el("span", { class: "ptag" });
+        t.textContent = "\uBE48\uCE78 " + blanks + "\uAC1C";
+        top.appendChild(t);
+      }
+      if (chos > 0) {
+        const t = el("span", { class: "ptag" });
+        t.textContent = "\uCD08\uC131 " + chos + "\uAC1C";
+        top.appendChild(t);
+      }
       pc.appendChild(top);
-      const pt=el('div',{style:{fontWeight:'800',fontSize:'13px',marginBottom:'2px'}});pt.textContent=card.title;pc.appendChild(pt);
-      if(card.hint){const ph=el('div',{style:{fontSize:'11px',color:C.muted,marginBottom:'3px',fontWeight:'700'}});ph.textContent='힌트: '+card.hint;pc.appendChild(ph);}
-      const pb=el('div',{style:{fontSize:'12px',color:C.text,whiteSpace:'pre-wrap',lineHeight:'1.7'}});pb.textContent=card.body;pc.appendChild(pb);
+      const pt = el("div", { style: { fontWeight: "800", fontSize: "13px", marginBottom: "2px" } });
+      pt.textContent = card.title;
+      pc.appendChild(pt);
+      if (card.hint) {
+        const ph = el("div", { style: { fontSize: "11px", color: C.muted, marginBottom: "3px", fontWeight: "700" } });
+        ph.textContent = "\uD78C\uD2B8: " + card.hint;
+        pc.appendChild(ph);
+      }
+      const pb = el("div", { style: { fontSize: "12px", color: C.text, whiteSpace: "pre-wrap", lineHeight: "1.7" } });
+      pb.textContent = card.body;
+      pc.appendChild(pb);
       previewWrap.appendChild(pc);
     });
   });
-  parseBtn.style.marginBottom='0';box.appendChild(parseBtn);
-
-  // 저장 버튼 (항상 표시)
-  const saveBtn=btn('저장','accent',function(){
-    const sid=subSel.value,cid=chSel.value;
-    if(!sid||!cid){alert('과목과 챕터를 선택하세요.');return;}
-    const parsed=parseBulkText(ta.value);
-    if(!parsed.length){alert('저장할 카드가 없습니다.');return;}
-    const toAdd=parsed.map(function(card){
-      return {id:uid(),subjectId:sid,chapterId:cid,title:card.title,hint:card.hint,body:card.body,created:new Date().toISOString()};
+  parseBtn.style.marginBottom = "0";
+  box.appendChild(parseBtn);
+  const saveBtn = btn("\uC800\uC7A5", "accent", function() {
+    const sid = subSel.value, cid = chSel.value;
+    if (!sid || !cid) {
+      alert("\uACFC\uBAA9\uACFC \uCC55\uD130\uB97C \uC120\uD0DD\uD558\uC138\uC694.");
+      return;
+    }
+    const parsed = parseBulkText(ta.value);
+    if (!parsed.length) {
+      alert("\uC800\uC7A5\uD560 \uCE74\uB4DC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
+      return;
+    }
+    const toAdd = parsed.map(function(card) {
+      return { id: uid(), subjectId: sid, chapterId: cid, title: card.title, hint: card.hint, body: card.body, created: (/* @__PURE__ */ new Date()).toISOString() };
     });
-    persist({subjects:S.data.subjects,cards:S.data.cards.concat(toAdd)});
+    persist({ subjects: S.data.subjects, cards: S.data.cards.concat(toAdd) });
     document.body.removeChild(bg);
   });
-  saveBtn.style.marginTop='16px';
+  saveBtn.style.marginTop = "16px";
   box.appendChild(saveBtn);
 }
-
-function showConfirm(msg, onOk){
-  const bg=el('div',{class:'confirm-modal'});
-  const box=el('div',{class:'confirm-box'});
-  const m=el('div',{class:'confirm-msg'});m.textContent=msg;box.appendChild(m);
-  const row=el('div',{class:'flex',style:{justifyContent:'center',gap:'12px'}});
-  const okBtn=btn('삭제','red',()=>{document.body.removeChild(bg);onOk();});
-  const cancelBtn=btn('취소','',()=>document.body.removeChild(bg));
-  row.appendChild(cancelBtn);row.appendChild(okBtn);box.appendChild(row);
-  bg.appendChild(box);document.body.appendChild(bg);
+function showConfirm(msg, onOk) {
+  const bg = el("div", { class: "confirm-modal" });
+  const box = el("div", { class: "confirm-box" });
+  const m = el("div", { class: "confirm-msg" });
+  m.textContent = msg;
+  box.appendChild(m);
+  const row = el("div", { class: "flex", style: { justifyContent: "center", gap: "12px" } });
+  const okBtn = btn("\uC0AD\uC81C", "red", () => {
+    document.body.removeChild(bg);
+    onOk();
+  });
+  const cancelBtn = btn("\uCDE8\uC18C", "", () => document.body.removeChild(bg));
+  row.appendChild(cancelBtn);
+  row.appendChild(okBtn);
+  box.appendChild(row);
+  bg.appendChild(box);
+  document.body.appendChild(bg);
 }
-
-// ── Header ───────────────────────────────────────────────────────────────────
-function renderHeader(){
-  const{view,data}=S;const dueCount=data.cards.filter(isDue).length;
-  const banner=el('div',{class:'hdr-banner',onClick:()=>set({view:'home'})},[
-    el('div',{class:'hdr-title'},'BLANKQUIZ'),
-
+function renderHeader() {
+  const { view, data } = S;
+  const dueCount = data.cards.filter(isDue).length;
+  const banner = el("div", { class: "hdr-banner", onClick: () => set({ view: "home" }) }, [
+    el("div", { class: "hdr-title" }, "BLANKQUIZ")
   ]);
-  function nb(label,v,cls){
-    const b=el('button',{class:'nav-btn '+(cls||'')+(view===v?' active':''),onClick:()=>{
-      if(v==='create')set({view:v,selSub:null,selCh:null,cTitle:'',cHint:'',cBody:'',cPreview:false});
-      else set({view:v});
-    }});
-    b.textContent=label;
-    if(v==='review'&&dueCount>0)b.appendChild(el('span',{class:'due-badge'},String(dueCount)));
+  function nb(label, v, cls) {
+    const b = el("button", {
+      class: "nav-btn " + (cls || "") + (view === v ? " active" : ""),
+      onClick: () => {
+        if (v === "create") set({ view: v, selSub: null, selCh: null, cTitle: "", cHint: "", cBody: "", cPreview: false });
+        else set({ view: v });
+      }
+    });
+    b.textContent = label;
+    if (v === "review" && dueCount > 0) b.appendChild(el("span", { class: "due-badge" }, String(dueCount)));
     return b;
   }
-  const nav=el('div',{class:'hdr-nav'},[
-    nb('홈','home'),nb('카드 만들기','create'),nb('카드 목록','cards'),
-    nb('테스트','test','purple'),nb('복습','review','teal'),
+  const nav = el("div", { class: "hdr-nav" }, [
+    nb("\uD648", "home"),
+    nb("\uCE74\uB4DC \uB9CC\uB4E4\uAE30", "create"),
+    nb("\uCE74\uB4DC \uBAA9\uB85D", "cards"),
+    nb("\uD14C\uC2A4\uD2B8", "test", "purple"),
+    nb("\uBCF5\uC2B5", "review", "teal")
   ]);
-  return el('div',{style:{marginBottom:'20px'}},[banner,nav]);
+  return el("div", { style: { marginBottom: "20px" } }, [banner, nav]);
 }
-
-// ── Home ─────────────────────────────────────────────────────────────────────
-function renderHome(){
-  const{data}=S;const{subjects,cards}=data;let nsVal='';
-  const nsInp=el('input',{class:'inp',placeholder:'새 과목 이름 입력 후 Enter',value:'',onInput:e=>nsVal=e.target.value});
-  const doAdd=()=>{if(!nsVal.trim())return;persist({subjects:[...subjects,{id:uid(),name:nsVal.trim(),chapters:[]}],cards});nsVal='';nsInp.value='';};
-  nsInp.addEventListener('keydown',e=>{if(e.key==='Enter')doAdd();});
-  return el('div',{class:'fade'},[sectionEl('과목 관리',[
-    el('div',{class:'flex',style:{marginBottom:'20px'}},[nsInp,btn('추가','accent',doAdd)]),
-    subjects.length===0?el('div',{class:'empty'},'과목을 추가해서 학습을 시작하세요'):null,
-    ...subjects.map(sub=>renderSubjectCard(sub,cards)),
+function renderHome() {
+  const { data } = S;
+  const { subjects, cards } = data;
+  let nsVal = "";
+  const nsInp = el("input", { class: "inp", placeholder: "\uC0C8 \uACFC\uBAA9 \uC774\uB984 \uC785\uB825 \uD6C4 Enter", value: "", onInput: (e) => nsVal = e.target.value });
+  const doAdd = () => {
+    if (!nsVal.trim()) return;
+    persist({ subjects: [...subjects, { id: uid(), name: nsVal.trim(), chapters: [] }], cards });
+    nsVal = "";
+    nsInp.value = "";
+  };
+  nsInp.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") doAdd();
+  });
+  return el("div", { class: "fade" }, [sectionEl("\uACFC\uBAA9 \uAD00\uB9AC", [
+    el("div", { class: "flex", style: { marginBottom: "20px" } }, [nsInp, btn("\uCD94\uAC00", "accent", doAdd)]),
+    subjects.length === 0 ? el("div", { class: "empty" }, "\uACFC\uBAA9\uC744 \uCD94\uAC00\uD574\uC11C \uD559\uC2B5\uC744 \uC2DC\uC791\uD558\uC138\uC694") : null,
+    ...subjects.map((sub) => renderSubjectCard(sub, cards))
   ].filter(Boolean))]);
 }
-
-function renderSubjectCard(sub,cards){
-  const subCards=cards.filter(c=>c.subjectId===sub.id);
-  let open=true;let chVal='';
-  const wrapper=el('div',{style:{border:'2px solid #d4ecc0',borderRadius:'16px',marginBottom:'14px',overflow:'hidden',boxShadow:'0 2px 8px rgba(0,0,0,.06)'}});
-  function rebuild(){
-    wrapper.innerHTML='';
-    const hdr=el('div',{class:'subj-hdr',onClick:()=>{open=!open;rebuild();}});
-    hdr.appendChild(el('span',{style:{flex:'1',fontWeight:'800',fontSize:'15px'}},sub.name));
-    hdr.appendChild(el('span',{style:{color:C.muted,fontSize:'12px',marginRight:'10px'}},`${(sub.chapters||[]).length}챕터 · ${subCards.length}문제`));
-    hdr.appendChild(el('button',{style:{background:'none',border:'none',color:C.red,fontSize:'14px',padding:'2px 6px',cursor:'pointer'},onClick:e=>{e.stopPropagation();showConfirm(`'${sub.name}' 과목을 삭제할까요? 모든 카드가 삭제됩니다.`,()=>persist({subjects:S.data.subjects.filter(s=>s.id!==sub.id),cards:S.data.cards.filter(x=>x.subjectId!==sub.id)}));}},'X'));
-    hdr.appendChild(el('span',{style:{color:C.muted,marginLeft:'6px',fontSize:'13px'}},open?'▲':'▼'));
+function renderSubjectCard(sub, cards) {
+  const subCards = cards.filter((c) => c.subjectId === sub.id);
+  let open = true;
+  let chVal = "";
+  const wrapper = el("div", { style: { border: "2px solid #d4ecc0", borderRadius: "16px", marginBottom: "14px", overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,.06)" } });
+  function rebuild() {
+    wrapper.innerHTML = "";
+    const hdr = el("div", { class: "subj-hdr", onClick: () => {
+      open = !open;
+      rebuild();
+    } });
+    hdr.appendChild(el("span", { style: { flex: "1", fontWeight: "800", fontSize: "15px" } }, sub.name));
+    hdr.appendChild(el("span", { style: { color: C.muted, fontSize: "12px", marginRight: "10px" } }, `${(sub.chapters || []).length}\uCC55\uD130 \xB7 ${subCards.length}\uBB38\uC81C`));
+    hdr.appendChild(el("button", { style: { background: "none", border: "none", color: C.red, fontSize: "14px", padding: "2px 6px", cursor: "pointer" }, onClick: (e) => {
+      e.stopPropagation();
+      showConfirm(`'${sub.name}' \uACFC\uBAA9\uC744 \uC0AD\uC81C\uD560\uAE4C\uC694? \uBAA8\uB4E0 \uCE74\uB4DC\uAC00 \uC0AD\uC81C\uB429\uB2C8\uB2E4.`, () => persist({ subjects: S.data.subjects.filter((s) => s.id !== sub.id), cards: S.data.cards.filter((x) => x.subjectId !== sub.id) }));
+    } }, "X"));
+    hdr.appendChild(el("span", { style: { color: C.muted, marginLeft: "6px", fontSize: "13px" } }, open ? "\u25B2" : "\u25BC"));
     wrapper.appendChild(hdr);
-    // 과목 전체 학습 버튼 (헤더 아래 별도 행)
-    if(open){
-      const subjBtnRow=el('div',{style:{padding:'8px 18px 0',background:'#f0f9e8',display:'flex',gap:'8px',flexWrap:'wrap'}});
-      const subjCards=S.data.cards.filter(c=>c.subjectId===sub.id);
-      if(subjCards.length>0){
-        subjBtnRow.appendChild(btn('과목 전체 학습','small green',()=>{
-          const saved=loadStudy(sub.id,null);
-          const same=saved&&saved.selSub===sub.id&&!saved.selCh&&(saved.studyIdx>0||saved.studyDone>0||saved.completed);
-          if(same){set({view:'study',selSub:sub.id,selCh:null,studyResumePrompt:true});}
-          else{clearStudy(sub.id,null);set({view:'study',selSub:sub.id,selCh:null,studyCount:0,studyMode:'blank',studyQueue:[],studyIdx:0,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{},studyDone:0,studyResumePrompt:false});}
+    if (open) {
+      const subjBtnRow = el("div", { style: { padding: "8px 18px 0", background: "#f0f9e8", display: "flex", gap: "8px", flexWrap: "wrap" } });
+      const subjCards = S.data.cards.filter((c) => c.subjectId === sub.id);
+      if (subjCards.length > 0) {
+        subjBtnRow.appendChild(btn("\uACFC\uBAA9 \uC804\uCCB4 \uD559\uC2B5", "small green", () => {
+          const saved = loadStudy(sub.id, null);
+          const same = saved && saved.selSub === sub.id && !saved.selCh && (saved.studyIdx > 0 || saved.studyDone > 0 || saved.completed);
+          if (same) {
+            set({ view: "study", selSub: sub.id, selCh: null, studyResumePrompt: true });
+          } else {
+            clearStudy(sub.id, null);
+            set({ view: "study", selSub: sub.id, selCh: null, studyCount: 0, studyMode: "blank", studyQueue: [], studyIdx: 0, studyPhase: "answering", studyInputs: [], studyCb: 0, studyLocked: {}, studyDone: 0, studyResumePrompt: false });
+          }
         }));
       }
-      if(subjBtnRow.children.length>0)wrapper.appendChild(subjBtnRow);
+      if (subjBtnRow.children.length > 0) wrapper.appendChild(subjBtnRow);
     }
-    if(!open)return;
-    const body=el('div',{class:'subj-body'});
-    const chInp=el('input',{class:'inp',placeholder:'챕터 이름 입력 후 Enter',value:'',style:{marginBottom:'0'},onInput:e=>chVal=e.target.value});
-    const doAddCh=()=>{if(!chVal.trim())return;const updated={...sub,chapters:[...(sub.chapters||[]),{id:uid(),name:chVal.trim()}]};persist({subjects:S.data.subjects.map(s=>s.id===sub.id?updated:s),cards:S.data.cards});};
-    chInp.addEventListener('keydown',e=>{if(e.key==='Enter')doAddCh();});
-    body.appendChild(el('div',{class:'flex',style:{marginBottom:'12px'}},[chInp,btn('추가','small',doAddCh)]));
-    if(!(sub.chapters||[]).length)body.appendChild(el('div',{class:'empty small'},'챕터를 추가하세요'));
-    (sub.chapters||[]).forEach(ch=>{
-      const chCards=S.data.cards.filter(c=>c.subjectId===sub.id&&c.chapterId===ch.id);
-      const dueCnt=chCards.filter(isDue).length;
-      const row=el('div',{class:'ch-row'});
-      row.appendChild(el('span',{style:{flex:'1',fontSize:'13px',fontWeight:'700'}},ch.name));
-      row.appendChild(el('span',{style:{fontSize:'11px',color:C.muted}},`${chCards.length}문제`));
-      if(dueCnt>0)row.appendChild(el('span',{class:'rbadge'},`복습 ${dueCnt}`));
-      row.appendChild(btn('+ 카드','small',()=>set({view:'create',selSub:sub.id,selCh:ch.id,cTitle:'',cHint:'',cBody:'',cPreview:false})));
-      row.appendChild(btn('학습','small green',()=>{
-        const saved=loadStudy(sub.id,ch.id);
-        const sameCh=saved&&saved.selSub===sub.id&&saved.selCh===ch.id&&(saved.studyIdx>0||saved.studyDone>0||saved.completed);
-        if(sameCh){
-          set({view:'study',selSub:sub.id,selCh:ch.id,studyResumePrompt:true});
+    if (!open) return;
+    const body = el("div", { class: "subj-body" });
+    const chInp = el("input", { class: "inp", placeholder: "\uCC55\uD130 \uC774\uB984 \uC785\uB825 \uD6C4 Enter", value: "", style: { marginBottom: "0" }, onInput: (e) => chVal = e.target.value });
+    const doAddCh = () => {
+      if (!chVal.trim()) return;
+      const updated = { ...sub, chapters: [...sub.chapters || [], { id: uid(), name: chVal.trim() }] };
+      persist({ subjects: S.data.subjects.map((s) => s.id === sub.id ? updated : s), cards: S.data.cards });
+    };
+    chInp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") doAddCh();
+    });
+    body.appendChild(el("div", { class: "flex", style: { marginBottom: "12px" } }, [chInp, btn("\uCD94\uAC00", "small", doAddCh)]));
+    if (!(sub.chapters || []).length) body.appendChild(el("div", { class: "empty small" }, "\uCC55\uD130\uB97C \uCD94\uAC00\uD558\uC138\uC694"));
+    (sub.chapters || []).forEach((ch) => {
+      const chCards = S.data.cards.filter((c) => c.subjectId === sub.id && c.chapterId === ch.id);
+      const dueCnt = chCards.filter(isDue).length;
+      const row = el("div", { class: "ch-row" });
+      row.appendChild(el("span", { style: { flex: "1", fontSize: "13px", fontWeight: "700" } }, ch.name));
+      row.appendChild(el("span", { style: { fontSize: "11px", color: C.muted } }, `${chCards.length}\uBB38\uC81C`));
+      if (dueCnt > 0) row.appendChild(el("span", { class: "rbadge" }, `\uBCF5\uC2B5 ${dueCnt}`));
+      row.appendChild(btn("+ \uCE74\uB4DC", "small", () => set({ view: "create", selSub: sub.id, selCh: ch.id, cTitle: "", cHint: "", cBody: "", cPreview: false })));
+      row.appendChild(btn("\uD559\uC2B5", "small green", () => {
+        const saved = loadStudy(sub.id, ch.id);
+        const sameCh = saved && saved.selSub === sub.id && saved.selCh === ch.id && (saved.studyIdx > 0 || saved.studyDone > 0 || saved.completed);
+        if (sameCh) {
+          set({ view: "study", selSub: sub.id, selCh: ch.id, studyResumePrompt: true });
         } else {
-          clearStudy(sub.id,ch.id);
-          set({view:'study',selSub:sub.id,selCh:ch.id,
-            studyMode:'blank',studyCount:0,studyStartIdx:0,studyQueue:[],studyIdx:0,studyPhase:'answering',
-            studyInputs:[],studyCb:0,studyLocked:{},studyDone:0,
-            studyResumePrompt:false});
+          clearStudy(sub.id, ch.id);
+          set({
+            view: "study",
+            selSub: sub.id,
+            selCh: ch.id,
+            studyMode: "blank",
+            studyCount: 0,
+            studyStartIdx: 0,
+            studyQueue: [],
+            studyIdx: 0,
+            studyPhase: "answering",
+            studyInputs: [],
+            studyCb: 0,
+            studyLocked: {},
+            studyDone: 0,
+            studyResumePrompt: false
+          });
         }
       }));
-      row.appendChild(btn('삭제','small',()=>showConfirm(`'${ch.name}' 챕터를 삭제할까요?`,()=>{const updated={...sub,chapters:sub.chapters.filter(cc=>cc.id!==ch.id)};persist({subjects:S.data.subjects.map(s=>s.id===sub.id?updated:s),cards:S.data.cards.filter(x=>!(x.subjectId===sub.id&&x.chapterId===ch.id))});})));
+      row.appendChild(btn("\uC0AD\uC81C", "small", () => showConfirm(`'${ch.name}' \uCC55\uD130\uB97C \uC0AD\uC81C\uD560\uAE4C\uC694?`, () => {
+        const updated = { ...sub, chapters: sub.chapters.filter((cc) => cc.id !== ch.id) };
+        persist({ subjects: S.data.subjects.map((s) => s.id === sub.id ? updated : s), cards: S.data.cards.filter((x) => !(x.subjectId === sub.id && x.chapterId === ch.id)) });
+      })));
       body.appendChild(row);
     });
     wrapper.appendChild(body);
   }
-  rebuild();return wrapper;
+  rebuild();
+  return wrapper;
 }
-
-// ── Create ───────────────────────────────────────────────────────────────────
-function renderCreate(){
-  const{data,selSub,selCh,cTitle,cHint,cBody,cPreview}=S;const{subjects,cards}=data;
-  const chapters=getChapters(subjects,selSub);
-  const box=el('div',{class:'card-box'});
-  const grid=el('div',{class:'grid2',style:{marginBottom:'14px'}});
-  const subSel=el('select',{class:'inp',onChange:e=>set({selSub:e.target.value,selCh:null})});
-  subSel.appendChild(el('option',{value:''},'-- 과목 선택 --'));
-  subjects.forEach(s=>{const o=el('option',{value:s.id},s.name);if(s.id===selSub)o.selected=true;subSel.appendChild(o);});
-  const chSel=el('select',{class:'inp',onChange:e=>set({selCh:e.target.value})});
-  chSel.appendChild(el('option',{value:''},'-- 챕터 선택 --'));
-  if(selSub){chapters.forEach(c=>{const o=el('option',{value:c.id},c.name);if(c.id===selCh)o.selected=true;chSel.appendChild(o);});}else chSel.disabled=true;
-  const d1=el('div');d1.appendChild(lbl('과목'));d1.appendChild(subSel);
-  const d2=el('div');d2.appendChild(lbl('챕터'));d2.appendChild(chSel);
-  grid.appendChild(d1);grid.appendChild(d2);box.appendChild(grid);
-  box.appendChild(lbl('제목'));
-  const tInp=el('input',{class:'inp',placeholder:'카드 제목...',value:cTitle,style:{marginBottom:'10px'},onInput:e=>S.cTitle=e.target.value});box.appendChild(tInp);
-  box.appendChild(lbl('힌트 (선택)'));
-  const hInp=el('input',{class:'inp',placeholder:'힌트...',value:cHint,style:{marginBottom:'10px'},onInput:e=>S.cHint=e.target.value});box.appendChild(hInp);
-  box.appendChild(lbl('본문 — [[빈칸]] 또는 {초성} 지정'));
-  const ta=el('textarea',{class:'inp',rows:'6',placeholder:'예: 민사에 관하여 {법률에 규정이 없으면 [[관습법]]에 의하고 [[관습법]]이 없으면 [[조리]]에 의한다}.\n→ 빈칸모드: 법률에 규정이 없으면 [빈칸]에 의하고 [빈칸]이 없으면 [빈칸]에 의한다.\n→ 초성모드: ㅂㄹㅇ ㄱㅈㅇ ㅇㅇㅁ ㄱㅅㅂㅇ ㅇㅎㄱ ㄱㅅㅂㅇ ㅇㅇㅁ ㅈㄹㅇ ㅇㅎㄷ.',onInput:e=>S.cBody=e.target.value});ta.value=cBody;box.appendChild(ta);
-  const wrapBlank=btn('선택→[[빈칸]]','small',()=>{const s=ta.selectionStart,e=ta.selectionEnd;if(s===e)return;const next=ta.value.slice(0,s)+`[[${ta.value.slice(s,e)}]]`+ta.value.slice(e);ta.value=next;S.cBody=next;ta.focus();ta.setSelectionRange(s+2,e+2);});
-  const wrapCho=btn('선택→{초성}','small teal',()=>{const s=ta.selectionStart,e=ta.selectionEnd;if(s===e)return;const next=ta.value.slice(0,s)+`{${ta.value.slice(s,e)}}`+ta.value.slice(e);ta.value=next;S.cBody=next;ta.focus();ta.setSelectionRange(s+1,e+1);});
-  const prevBtn=btn(cPreview?'편집':'미리보기','small',()=>set({cPreview:!cPreview,cBody:ta.value,cTitle:tInp.value,cHint:hInp.value}));
-  const saveBtn=btn('저장','accent',()=>{
-    const t=tInp.value.trim(),h=hInp.value.trim(),b=ta.value.trim();
-    if(!t||!b||!S.selSub||!S.selCh){alert('과목, 챕터, 제목, 본문을 모두 입력하세요.');return;}
-    const pp=parseBody(b);
-    if(!pp.some(p=>p.type==='blank'||p.type==='cho')){alert('본문에 [[빈칸]] 또는 {초성}을 하나 이상 지정하세요.');return;}
-    S.cTitle='';S.cHint='';S.cBody='';S.cPreview=false;
-    persist({subjects,cards:[...cards,{id:uid(),subjectId:S.selSub,chapterId:S.selCh,title:t,hint:h,body:b,created:new Date().toISOString()}]});
+function renderCreate() {
+  const { data, selSub, selCh, cTitle, cHint, cBody, cPreview } = S;
+  const { subjects, cards } = data;
+  const chapters = getChapters(subjects, selSub);
+  const box = el("div", { class: "card-box" });
+  const grid = el("div", { class: "grid2", style: { marginBottom: "14px" } });
+  const subSel = el("select", { class: "inp", onChange: (e) => set({ selSub: e.target.value, selCh: null }) });
+  subSel.appendChild(el("option", { value: "" }, "-- \uACFC\uBAA9 \uC120\uD0DD --"));
+  subjects.forEach((s) => {
+    const o = el("option", { value: s.id }, s.name);
+    if (s.id === selSub) o.selected = true;
+    subSel.appendChild(o);
   });
-  box.appendChild(el('div',{class:'flex',style:{marginTop:'12px',flexWrap:'wrap'}},[wrapBlank,wrapCho,prevBtn,saveBtn]));
-  if(cPreview&&cBody){
-    const parts=parseBody(cBody);
-    const pb=el('div',{style:{marginTop:'16px',padding:'16px',background:C.surfAlt,borderRadius:'12px',border:'2px solid #d4ecc0',lineHeight:'1.9'}});
-    const bc=parts.filter(p=>p.type==='blank').length,cc=parts.filter(p=>p.type==='cho').length;
-    pb.appendChild(el('div',{style:{fontSize:'11px',color:C.muted,marginBottom:'8px',fontWeight:'700'}},`미리보기 — 빈칸 ${bc}개 · 초성 ${cc}개`));
-    parts.forEach(p=>{
-      if(p.type==='blank')pb.appendChild(el('span',{class:'preview-blank'},'　　　'));
-      else if(p.type==='cho')pb.appendChild(el('span',{class:'preview-cho'},toChosung(p.value)));
+  const chSel = el("select", { class: "inp", onChange: (e) => set({ selCh: e.target.value }) });
+  chSel.appendChild(el("option", { value: "" }, "-- \uCC55\uD130 \uC120\uD0DD --"));
+  if (selSub) {
+    chapters.forEach((c) => {
+      const o = el("option", { value: c.id }, c.name);
+      if (c.id === selCh) o.selected = true;
+      chSel.appendChild(o);
+    });
+  } else chSel.disabled = true;
+  const d1 = el("div");
+  d1.appendChild(lbl("\uACFC\uBAA9"));
+  d1.appendChild(subSel);
+  const d2 = el("div");
+  d2.appendChild(lbl("\uCC55\uD130"));
+  d2.appendChild(chSel);
+  grid.appendChild(d1);
+  grid.appendChild(d2);
+  box.appendChild(grid);
+  box.appendChild(lbl("\uC81C\uBAA9"));
+  const tInp = el("input", { class: "inp", placeholder: "\uCE74\uB4DC \uC81C\uBAA9...", value: cTitle, style: { marginBottom: "10px" }, onInput: (e) => S.cTitle = e.target.value });
+  box.appendChild(tInp);
+  box.appendChild(lbl("\uD78C\uD2B8 (\uC120\uD0DD)"));
+  const hInp = el("input", { class: "inp", placeholder: "\uD78C\uD2B8...", value: cHint, style: { marginBottom: "10px" }, onInput: (e) => S.cHint = e.target.value });
+  box.appendChild(hInp);
+  box.appendChild(lbl("\uBCF8\uBB38 \u2014 [[\uBE48\uCE78]] \uB610\uB294 {\uCD08\uC131} \uC9C0\uC815"));
+  const ta = el("textarea", { class: "inp", rows: "6", placeholder: "\uC608: \uBBFC\uC0AC\uC5D0 \uAD00\uD558\uC5EC {\uBC95\uB960\uC5D0 \uADDC\uC815\uC774 \uC5C6\uC73C\uBA74 [[\uAD00\uC2B5\uBC95]]\uC5D0 \uC758\uD558\uACE0 [[\uAD00\uC2B5\uBC95]]\uC774 \uC5C6\uC73C\uBA74 [[\uC870\uB9AC]]\uC5D0 \uC758\uD55C\uB2E4}.\n\u2192 \uBE48\uCE78\uBAA8\uB4DC: \uBC95\uB960\uC5D0 \uADDC\uC815\uC774 \uC5C6\uC73C\uBA74 [\uBE48\uCE78]\uC5D0 \uC758\uD558\uACE0 [\uBE48\uCE78]\uC774 \uC5C6\uC73C\uBA74 [\uBE48\uCE78]\uC5D0 \uC758\uD55C\uB2E4.\n\u2192 \uCD08\uC131\uBAA8\uB4DC: \u3142\u3139\u3147 \u3131\u3148\u3147 \u3147\u3147\u3141 \u3131\u3145\u3142\u3147 \u3147\u314E\u3131 \u3131\u3145\u3142\u3147 \u3147\u3147\u3141 \u3148\u3139\u3147 \u3147\u314E\u3137.", onInput: (e) => S.cBody = e.target.value });
+  ta.value = cBody;
+  box.appendChild(ta);
+  const wrapBlank = btn("\uC120\uD0DD\u2192[[\uBE48\uCE78]]", "small", () => {
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    if (s === e) return;
+    const next = ta.value.slice(0, s) + `[[${ta.value.slice(s, e)}]]` + ta.value.slice(e);
+    ta.value = next;
+    S.cBody = next;
+    ta.focus();
+    ta.setSelectionRange(s + 2, e + 2);
+  });
+  const wrapCho = btn("\uC120\uD0DD\u2192{\uCD08\uC131}", "small teal", () => {
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    if (s === e) return;
+    const next = ta.value.slice(0, s) + `{${ta.value.slice(s, e)}}` + ta.value.slice(e);
+    ta.value = next;
+    S.cBody = next;
+    ta.focus();
+    ta.setSelectionRange(s + 1, e + 1);
+  });
+  const prevBtn = btn(cPreview ? "\uD3B8\uC9D1" : "\uBBF8\uB9AC\uBCF4\uAE30", "small", () => set({ cPreview: !cPreview, cBody: ta.value, cTitle: tInp.value, cHint: hInp.value }));
+  const saveBtn = btn("\uC800\uC7A5", "accent", () => {
+    const t = tInp.value.trim(), h = hInp.value.trim(), b = ta.value.trim();
+    if (!t || !b || !S.selSub || !S.selCh) {
+      alert("\uACFC\uBAA9, \uCC55\uD130, \uC81C\uBAA9, \uBCF8\uBB38\uC744 \uBAA8\uB450 \uC785\uB825\uD558\uC138\uC694.");
+      return;
+    }
+    const pp = parseBody(b);
+    if (!pp.some((p) => p.type === "blank" || p.type === "cho")) {
+      alert("\uBCF8\uBB38\uC5D0 [[\uBE48\uCE78]] \uB610\uB294 {\uCD08\uC131}\uC744 \uD558\uB098 \uC774\uC0C1 \uC9C0\uC815\uD558\uC138\uC694.");
+      return;
+    }
+    S.cTitle = "";
+    S.cHint = "";
+    S.cBody = "";
+    S.cPreview = false;
+    persist({ subjects, cards: [...cards, { id: uid(), subjectId: S.selSub, chapterId: S.selCh, title: t, hint: h, body: b, created: (/* @__PURE__ */ new Date()).toISOString() }] });
+  });
+  box.appendChild(el("div", { class: "flex", style: { marginTop: "12px", flexWrap: "wrap" } }, [wrapBlank, wrapCho, prevBtn, saveBtn]));
+  if (cPreview && cBody) {
+    const parts = parseBody(cBody);
+    const pb = el("div", { style: { marginTop: "16px", padding: "16px", background: C.surfAlt, borderRadius: "12px", border: "2px solid #d4ecc0", lineHeight: "1.9" } });
+    const bc = parts.filter((p) => p.type === "blank").length, cc = parts.filter((p) => p.type === "cho").length;
+    pb.appendChild(el("div", { style: { fontSize: "11px", color: C.muted, marginBottom: "8px", fontWeight: "700" } }, `\uBBF8\uB9AC\uBCF4\uAE30 \u2014 \uBE48\uCE78 ${bc}\uAC1C \xB7 \uCD08\uC131 ${cc}\uAC1C`));
+    parts.forEach((p) => {
+      if (p.type === "blank") pb.appendChild(el("span", { class: "preview-blank" }, "\u3000\u3000\u3000"));
+      else if (p.type === "cho") pb.appendChild(el("span", { class: "preview-cho" }, toChosung(p.value)));
       else pb.appendChild(textWithBreaks(p.value));
     });
     box.appendChild(pb);
   }
-  const sec=sectionEl('새 카드 만들기',[box]);
-  if(selSub&&selCh){const ex=cards.filter(c=>c.subjectId===selSub&&c.chapterId===selCh);if(ex.length){sec.appendChild(lbl(`이 챕터의 카드 (${ex.length}개)`));ex.forEach(card=>{const row=el('div',{style:{display:'flex',alignItems:'center',padding:'9px 14px',background:C.bg,border:'1px solid #f0c8a0',borderRadius:'12px',marginBottom:'6px',gap:'10px'}});row.appendChild(el('span',{style:{flex:'1',fontSize:'13px',fontWeight:'700'}},card.title));const pp=parseBody(card.body);row.appendChild(el('span',{style:{fontSize:'11px',color:C.muted}},`빈칸 ${pp.filter(p=>p.type==='blank').length} · 초성 ${pp.filter(p=>p.type==='cho').length}`));row.appendChild(btn('삭제','small',()=>{persist({subjects,cards:cards.filter(x=>x.id!==card.id)});}));sec.appendChild(row);});}}
-  const bulkBtnEl=btn('텍스트로 일괄 생성','teal',function(){showBulkModal(subjects,cards);});
-  bulkBtnEl.style.marginTop='10px';
+  const sec = sectionEl("\uC0C8 \uCE74\uB4DC \uB9CC\uB4E4\uAE30", [box]);
+  if (selSub && selCh) {
+    const ex = cards.filter((c) => c.subjectId === selSub && c.chapterId === selCh);
+    if (ex.length) {
+      sec.appendChild(lbl(`\uC774 \uCC55\uD130\uC758 \uCE74\uB4DC (${ex.length}\uAC1C)`));
+      ex.forEach((card) => {
+        const row = el("div", { style: { display: "flex", alignItems: "center", padding: "9px 14px", background: C.bg, border: "1px solid #f0c8a0", borderRadius: "12px", marginBottom: "6px", gap: "10px" } });
+        row.appendChild(el("span", { style: { flex: "1", fontSize: "13px", fontWeight: "700" } }, card.title));
+        const pp = parseBody(card.body);
+        row.appendChild(el("span", { style: { fontSize: "11px", color: C.muted } }, `\uBE48\uCE78 ${pp.filter((p) => p.type === "blank").length} \xB7 \uCD08\uC131 ${pp.filter((p) => p.type === "cho").length}`));
+        row.appendChild(btn("\uC0AD\uC81C", "small", () => {
+          persist({ subjects, cards: cards.filter((x) => x.id !== card.id) });
+        }));
+        sec.appendChild(row);
+      });
+    }
+  }
+  const bulkBtnEl = btn("\uD14D\uC2A4\uD2B8\uB85C \uC77C\uAD04 \uC0DD\uC131", "teal", function() {
+    showBulkModal(subjects, cards);
+  });
+  bulkBtnEl.style.marginTop = "10px";
   sec.appendChild(bulkBtnEl);
-  return el('div',{class:'fade'},[sec]);
+  return el("div", { class: "fade" }, [sec]);
 }
-
-// ── 초성/통암기 Body 렌더러 (단어별 밑줄) ────────────────────────────────────────
-function renderChoBody(parts,phase,inputs,locked,ref,actives,onEnter,mode){
-  const wrap=document.createElement('div');
-  wrap.style.cssText='margin-bottom:20px;font-size:15px';
-
-  // flat 단어 배열 (locked는 이 인덱스 기준)
-  const flatW=[];
-  parts.forEach(function(p){
-    if(p.type!=='cho'&&p.type!=='blank')return;
-    p.value.split(/[ \n]/).forEach(function(w){if(w)flatW.push(w);});
-  });
-
-  const allInps=[];
-
-  function makeInp(word, flatIdx){
-    const isLocked=locked&&locked[flatIdx];
-    const unit=document.createElement('span');unit.className='cho-word-unit';
-    const hint=document.createElement('span');hint.className='cho-word-hint';
-    hint.textContent=(mode==='cho'&&!isLocked)?toChosung(word):'';
-    const charLen=word.replace(/[.,!?。、]/g,'').length;
-    const inp=document.createElement('input');
-    inp.className='cho-word-inp'+(isLocked?' bok':'');
-    inp.style.width=Math.max(20,charLen*16)+'px';
-    inp.setAttribute('data-answer',word);
-    inp.setAttribute('data-fidx',String(flatIdx));
-    if(isLocked){
-      inp.value=word;inp.disabled=true;
-    } else {
-      inp.value=inputs[flatIdx]||'';
-      inp.addEventListener('input',function(){
-        const minW=Math.max(20,charLen*16);
-        inp.style.width=Math.max(minW,(inp.value.length+1)*14)+'px';
-        S.studyInputs[flatIdx]=inp.value;
-      });
-      inp.addEventListener('keydown',function(e){
-        if(e.key==='Backspace'&&inp.value===''){
-          e.preventDefault();
-          for(let k=allInps.length-1;k>=0;k--){
-            if(allInps[k]!==inp&&!allInps[k].disabled){
-              allInps[k].focus();
-              const l=allInps[k].value.length;
-              allInps[k].setSelectionRange(l,l);
-              break;
-            }
-          }
-        }
-      });
-      inp.addEventListener('keyup',function(e){
-        if(e.key===' '||e.key==='Spacebar'||e.key==='Enter'){
-          inp.value=inp.value.replace(/ /g,'');
-          let found=false;
-          for(let k=0;k<allInps.length;k++){
-            if(parseInt(allInps[k].getAttribute('data-fidx'))>flatIdx&&!allInps[k].disabled){
-              allInps[k].focus();found=true;break;
-            }
-          }
-          if(!found){
-            // 채점 전 allInps에서 S.studyInputs 수집
-            for(var ki=0;ki<allInps.length;ki++){
-              var kfi=parseInt(allInps[ki].getAttribute('data-fidx'));
-              if(!isNaN(kfi))S.studyInputs[kfi]=allInps[ki].value;
-            }
-            onEnter();
-          }
-        }
-      });
+function renderQuizBody(parts, phase, inputs, cb, locked, ref, onInput, onEnter, mode) {
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "line-height:2.4;font-size:15px;margin-bottom:20px";
+  let ai = 0, first = null;
+  parts.forEach((p) => {
+    if (p.type === "text") {
+      wrap.appendChild(textWithBreaks(p.value));
+      return;
     }
-    allInps.push(inp);
-    unit.appendChild(hint);unit.appendChild(inp);
-    return unit;
-  }
-
-  function makeResultWord(word,flatIdx){
-    const isLocked=locked&&locked[flatIdx];
-    const userVal=isLocked?word:(inputs[flatIdx]||'');
-    const ok=isLocked||(userVal.trim()===word.trim());
-    const unit=document.createElement('span');unit.className='cho-word-unit';
-    const iv=document.createElement('span');
-    iv.style.cssText='font-size:10px;font-weight:700;min-height:13px;display:block;text-align:center;color:'+(ok?C.green:C.red);
-    iv.textContent=isLocked?'':(ok?'':userVal||'?');
-    const ans=document.createElement('span');
-    ans.style.cssText='border-bottom:2px solid '+(ok?C.green:C.red)+';padding:1px 4px;font-size:15px;color:'+(ok?C.green:C.red)+';display:inline-block;min-width:20px;text-align:center;font-weight:700';
-    ans.textContent=word;
-    unit.appendChild(iv);unit.appendChild(ans);
-    return unit;
-  }
-
-  function makeSp(){const sp=document.createElement('span');sp.className='cho-space';return sp;}
-  function makePlain(t){const sp=document.createElement('span');sp.className='cho-plain';sp.textContent=t;return sp;}
-
-  // 파트별 렌더링 (줄바꿈 유지)
-  let flatIdx=0;
-  parts.forEach(function(p){
-    if(p.type==='text'){
-      p.value.split('\n').forEach(function(line,li,arr){
-        const row=document.createElement('div');row.className='cho-word-row';
-        line.split(' ').forEach(function(w,wi,warr){
-          if(w)row.appendChild(makePlain(w));
-          if(wi<warr.length-1)row.appendChild(makeSp());
-        });
-        wrap.appendChild(row);
-        if(li<arr.length-1)wrap.appendChild(document.createElement('br'));
-      });
-    } else {
-      p.value.split('\n').forEach(function(line,li,arr){
-        const row=document.createElement('div');row.className='cho-word-row';
-        const words=line.split(' ').filter(function(w){return w;});
-        words.forEach(function(w,wi,warr){
-          const fi=flatIdx++;
-          row.appendChild(phase==='result'?makeResultWord(w,fi):makeInp(w,fi));
-          if(wi<warr.length-1)row.appendChild(makeSp());
-        });
-        wrap.appendChild(row);
-        if(li<arr.length-1)wrap.appendChild(document.createElement('br'));
-      });
+    if (p.type === "cho_sp" || p.type === "cho_space") {
+      wrap.appendChild(el("span", { style: { width: "6px", display: "inline-block" } }));
+      return;
     }
-  });
-
-  if(ref&&phase!=='result'){
-    ref.el=allInps.find(function(i){return !i.disabled;})||null;
-    ref.allInps=allInps;
-  }
-  return wrap;
-}
-
-
-// ── QuizBody 렌더러 ───────────────────────────────────────────────────────────
-// parts는 parseForMode(body, mode)의 결과 (모드별 전처리 완료)
-// blank모드: text|blank 타입만 존재
-// cho모드:   text|cho 타입만 존재, cho.hint = 초성 힌트 문자열
-function renderQuizBody(parts,phase,inputs,cb,locked,ref,onInput,onEnter,mode){
-  const wrap=document.createElement('div');wrap.style.cssText='line-height:2.4;font-size:15px;margin-bottom:20px';
-  let ai=0,first=null;
-  parts.forEach(p=>{
-    if(p.type==='text'){wrap.appendChild(textWithBreaks(p.value));return;}
-    if(p.type==='cho_sp'||p.type==='cho_space'){wrap.appendChild(el('span',{style:{width:'6px',display:'inline-block'}}));return;}
-    if(p.type==='cho_br'){wrap.appendChild(document.createElement('br'));return;}
-    // 입력 대상 파트 (blank 또는 cho)
-    const bIdx=ai++;
-    const displayVal=p.value;
-    if(phase==='result'){
-      const ok=(inputs[bIdx]||'').trim()===displayVal.trim();
-      const sp=el('div',{class:ok?'bok':'bng'});
-      sp.appendChild(el('span',{class:'iv'},inputs[bIdx]||'(공백)'));
-      sp.appendChild(el('span',{class:'ans'},displayVal));
-      wrap.appendChild(sp);return;
+    if (p.type === "cho_br") {
+      wrap.appendChild(document.createElement("br"));
+      return;
     }
-    if(locked&&locked[bIdx]){
-      if(p.hint){
-        const cw=el('span',{class:'cho-wrap'});
-        cw.appendChild(el('span',{class:'cho-label'},p.hint));
-        cw.appendChild(el('span',{class:'blank-locked'},displayVal));
+    const bIdx = ai++;
+    const displayVal = p.value;
+    if (phase === "result") {
+      const ok = (inputs[bIdx] || "").trim() === displayVal.trim();
+      const sp = el("div", { class: ok ? "bok" : "bng" });
+      sp.appendChild(el("span", { class: "iv" }, inputs[bIdx] || "(\uACF5\uBC31)"));
+      sp.appendChild(el("span", { class: "ans" }, displayVal));
+      wrap.appendChild(sp);
+      return;
+    }
+    if (locked && locked[bIdx]) {
+      if (p.hint) {
+        const cw = el("span", { class: "cho-wrap" });
+        cw.appendChild(el("span", { class: "cho-label" }, p.hint));
+        cw.appendChild(el("span", { class: "blank-locked" }, displayVal));
         wrap.appendChild(cw);
       } else {
-        wrap.appendChild(el('span',{class:'blank-locked'},displayVal));
+        wrap.appendChild(el("span", { class: "blank-locked" }, displayVal));
       }
       return;
     }
-    if(bIdx<cb){
-      if(p.hint){
-        const cw=el('span',{class:'cho-wrap'});
-        cw.appendChild(el('span',{class:'cho-label'},p.hint));
-        cw.appendChild(el('span',{class:'blank-filled'},inputs[bIdx]||'　'));
+    if (bIdx < cb) {
+      if (p.hint) {
+        const cw = el("span", { class: "cho-wrap" });
+        cw.appendChild(el("span", { class: "cho-label" }, p.hint));
+        cw.appendChild(el("span", { class: "blank-filled" }, inputs[bIdx] || "\u3000"));
         wrap.appendChild(cw);
       } else {
-        wrap.appendChild(el('span',{class:'blank-filled'},inputs[bIdx]||'　'));
+        wrap.appendChild(el("span", { class: "blank-filled" }, inputs[bIdx] || "\u3000"));
       }
       return;
     }
-    if(bIdx===cb){
-      const initW=p.hint?Math.max(p.hint.length*13+16,60):60;
-      const input=el('input',{class:'blank-input',value:inputs[bIdx]||''});
-      input.style.width=Math.max(initW,((inputs[bIdx]||'').length+2)*10)+'px';
-      input.addEventListener('input',function(e){
+    if (bIdx === cb) {
+      const initW = p.hint ? Math.max(p.hint.length * 13 + 16, 60) : 60;
+      const input = el("input", { class: "blank-input", value: inputs[bIdx] || "" });
+      input.style.width = Math.max(initW, ((inputs[bIdx] || "").length + 2) * 10) + "px";
+      input.addEventListener("input", function(e) {
         onInput(e.target.value);
-        input.style.width=Math.max(initW,(e.target.value.length+2)*10)+'px';
+        input.style.width = Math.max(initW, (e.target.value.length + 2) * 10) + "px";
       });
-      input.addEventListener('keydown',function(e){
-        if(e.key==='Enter'||(p.hint&&(e.key===' '||e.key==='Spacebar'))){
-          e.preventDefault();onEnter();
+      input.addEventListener("keydown", function(e) {
+        if (e.key === "Enter" || p.hint && (e.key === " " || e.key === "Spacebar")) {
+          e.preventDefault();
+          onEnter();
         }
       });
-      if(p.hint){
-        const cw=el('span',{class:'cho-wrap'});
-        cw.appendChild(el('span',{class:'cho-label'},p.hint));
-        const sp=el('span',{class:'blank-wrap'});sp.appendChild(input);
-        cw.appendChild(sp);wrap.appendChild(cw);
+      if (p.hint) {
+        const cw = el("span", { class: "cho-wrap" });
+        cw.appendChild(el("span", { class: "cho-label" }, p.hint));
+        const sp = el("span", { class: "blank-wrap" });
+        sp.appendChild(input);
+        cw.appendChild(sp);
+        wrap.appendChild(cw);
       } else {
-        const sp=el('span',{class:'blank-wrap'});sp.appendChild(input);wrap.appendChild(sp);
+        const sp = el("span", { class: "blank-wrap" });
+        sp.appendChild(input);
+        wrap.appendChild(sp);
       }
-      if(!first)first=input;return;
+      if (!first) first = input;
+      return;
     }
-    if(p.hint){
-      const cw=el('span',{class:'cho-wrap'});
-      cw.appendChild(el('span',{class:'cho-label'},p.hint));
-      cw.appendChild(el('span',{class:'blank-slot'},'　　'));
+    if (p.hint) {
+      const cw = el("span", { class: "cho-wrap" });
+      cw.appendChild(el("span", { class: "cho-label" }, p.hint));
+      cw.appendChild(el("span", { class: "blank-slot" }, "\u3000\u3000"));
       wrap.appendChild(cw);
     } else {
-      wrap.appendChild(el('span',{class:'blank-slot'},'　　'));
+      wrap.appendChild(el("span", { class: "blank-slot" }, "\u3000\u3000"));
     }
   });
-  if(ref)ref.el=first;return wrap;
+  if (ref) ref.el = first;
+  return wrap;
 }
-
-// ── Study ────────────────────────────────────────────────────────────────────
-function renderStudy(){
-  const{data,selSub,selCh,studyMode,studyResumePrompt,studyCount,studyStartIdx}=S;
-  const subjects=data.subjects;
-
-  // 정렬된 전체 카드 배열
-  const allCards=data.cards.filter(c=>(!selSub||c.subjectId===selSub)&&(!selCh||c.chapterId===selCh));
-  const base=allCards.slice().sort(function(a,b){
-    const si=subjects.findIndex(function(s){return s.id===a.subjectId;});
-    const si2=subjects.findIndex(function(s){return s.id===b.subjectId;});
-    if(si!==si2)return si-si2;
-    const s=subjects[Math.max(0,si)]||{chapters:[]};
-    const ci=(s.chapters||[]).findIndex(function(c){return c.id===a.chapterId;});
-    const ci2=(s.chapters||[]).findIndex(function(c){return c.id===b.chapterId;});
-    if(ci!==ci2)return ci-ci2;
-    if(S.cardSort==='title')return a.title.localeCompare(b.title,'ko',{numeric:true,sensitivity:'base'});
-    return new Date(a.created||0)-new Date(b.created||0);
+function renderStudy() {
+  const { data, selSub, selCh, studyMode, studyResumePrompt, studyCount, studyStartIdx } = S;
+  const subjects = data.subjects;
+  const allCards = data.cards.filter((c) => (!selSub || c.subjectId === selSub) && (!selCh || c.chapterId === selCh));
+  const base = allCards.slice().sort(function(a, b) {
+    const si = subjects.findIndex(function(s2) {
+      return s2.id === a.subjectId;
+    });
+    const si2 = subjects.findIndex(function(s2) {
+      return s2.id === b.subjectId;
+    });
+    if (si !== si2) return si - si2;
+    const s = subjects[Math.max(0, si)] || { chapters: [] };
+    const ci = (s.chapters || []).findIndex(function(c) {
+      return c.id === a.chapterId;
+    });
+    const ci2 = (s.chapters || []).findIndex(function(c) {
+      return c.id === b.chapterId;
+    });
+    if (ci !== ci2) return ci - ci2;
+    if (S.cardSort === "title") return a.title.localeCompare(b.title, "ko", { numeric: true, sensitivity: "base" });
+    return new Date(a.created || 0).getTime() - new Date(b.created || 0).getTime();
   });
-
-  if(!base.length){
-    const ew=el('div',{style:{textAlign:'center',padding:'60px'}});
-    ew.appendChild(el('div',{style:{color:C.muted,marginBottom:'20px'}},'카드가 없습니다'));
-    ew.appendChild(btn('홈으로','',()=>set({view:'home'})));return ew;
+  if (!base.length) {
+    const ew = el("div", { style: { textAlign: "center", padding: "60px" } });
+    ew.appendChild(el("div", { style: { color: C.muted, marginBottom: "20px" } }, "\uCE74\uB4DC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4"));
+    ew.appendChild(btn("\uD648\uC73C\uB85C", "", () => set({ view: "home" })));
+    return ew;
   }
-
-  // ── 이어하기 선택 화면 ──────────────────────────────────────────────
-  if(studyResumePrompt){
-    const saved=loadStudy();
-    const box=el('div',{class:'resume-box'});
-    const isCompleted=saved&&saved.completed;
-    const nextStart3=(saved.studyStartIdx||0)+(saved.studyCount||0);
-    const hasNext=nextStart3<base.length;
-
-    if(isCompleted&&hasNext){
-      // 구간 완료 후 홈으로 → 다음 구간 안내
-      const t1=el('div',{style:{fontWeight:'800',fontSize:'16px',marginBottom:'8px'}});
-      t1.textContent=(saved.studyStartIdx+1)+'~'+(saved.studyStartIdx+saved.studyCount)+'번 구간 완료!';
+  if (studyResumePrompt) {
+    const saved = loadStudy();
+    const box = el("div", { class: "resume-box" });
+    const isCompleted = saved && saved.completed;
+    const nextStart3 = (saved.studyStartIdx || 0) + (saved.studyCount || 0);
+    const hasNext = nextStart3 < base.length;
+    if (isCompleted && hasNext) {
+      const t1 = el("div", { style: { fontWeight: "800", fontSize: "16px", marginBottom: "8px" } });
+      t1.textContent = saved.studyStartIdx + 1 + "~" + (saved.studyStartIdx + saved.studyCount) + "\uBC88 \uAD6C\uAC04 \uC644\uB8CC!";
       box.appendChild(t1);
-      const nextCount2=Math.min(saved.studyCount,base.length-nextStart3);
-      const t2=el('div',{style:{fontSize:'13px',color:C.muted,marginBottom:'16px'}});
-      t2.textContent='다음: '+(nextStart3+1)+'~'+(nextStart3+nextCount2)+'번 카드 ('+nextCount2+'개)';
+      const nextCount2 = Math.min(saved.studyCount, base.length - nextStart3);
+      const t2 = el("div", { style: { fontSize: "13px", color: C.muted, marginBottom: "16px" } });
+      t2.textContent = "\uB2E4\uC74C: " + (nextStart3 + 1) + "~" + (nextStart3 + nextCount2) + "\uBC88 \uCE74\uB4DC (" + nextCount2 + "\uAC1C)";
       box.appendChild(t2);
-      const brow=el('div',{class:'flex'});
-      brow.appendChild(btn('이어서 학습 →','green',()=>{
+      const brow = el("div", { class: "flex" });
+      brow.appendChild(btn("\uC774\uC5B4\uC11C \uD559\uC2B5 \u2192", "green", () => {
         clearStudy();
-        const nextQueue=base.slice(nextStart3,nextStart3+nextCount2);
-        S.studyQueue=nextQueue;
-        set({studyResumePrompt:false,studyStartIdx:nextStart3,studyCount:nextCount2,
-          studyQueue:nextQueue,studyIdx:0,studyDone:0,studyMode:'blank',
-          studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});
+        const nextQueue = base.slice(nextStart3, nextStart3 + nextCount2);
+        S.studyQueue = nextQueue;
+        set({
+          studyResumePrompt: false,
+          studyStartIdx: nextStart3,
+          studyCount: nextCount2,
+          studyQueue: nextQueue,
+          studyIdx: 0,
+          studyDone: 0,
+          studyMode: "blank",
+          studyPhase: "answering",
+          studyInputs: [],
+          studyCb: 0,
+          studyLocked: {}
+        });
       }));
-      brow.appendChild(btn('처음부터','',()=>{
+      brow.appendChild(btn("\uCC98\uC74C\uBD80\uD130", "", () => {
         clearStudy();
-        set({studyResumePrompt:false,studyCount:0,studyStartIdx:0,studyQueue:[],
-          studyIdx:0,studyDone:0,studyMode:'blank',studyPhase:'answering',
-          studyInputs:[],studyCb:0,studyLocked:{}});
+        set({
+          studyResumePrompt: false,
+          studyCount: 0,
+          studyStartIdx: 0,
+          studyQueue: [],
+          studyIdx: 0,
+          studyDone: 0,
+          studyMode: "blank",
+          studyPhase: "answering",
+          studyInputs: [],
+          studyCb: 0,
+          studyLocked: {}
+        });
       }));
       box.appendChild(brow);
     } else {
-      // 진행 중 중단
-      const t1=el('div',{style:{fontWeight:'800',fontSize:'16px',marginBottom:'8px'}});
-      t1.textContent='이전 학습 기록이 있어요';box.appendChild(t1);
-      const savedMode=(saved&&saved.studyMode)==='cho'?'초성':'빈칸';
-      const t2=el('div',{style:{fontSize:'13px',color:C.muted,marginBottom:'16px'}});
-      t2.textContent=((saved&&saved.studyStartIdx)||0+1)+'~'+((saved&&saved.studyStartIdx||0)+(saved&&saved.studyCount||0))+'번 카드 · '+savedMode+' 모드 · '+((saved&&saved.studyDone)||0)+'/'+(saved&&saved.studyCount||0)+'개 완료';
+      const t1 = el("div", { style: { fontWeight: "800", fontSize: "16px", marginBottom: "8px" } });
+      t1.textContent = "\uC774\uC804 \uD559\uC2B5 \uAE30\uB85D\uC774 \uC788\uC5B4\uC694";
+      box.appendChild(t1);
+      const savedMode = (saved && saved.studyMode) === "cho" ? "\uCD08\uC131" : "\uBE48\uCE78";
+      const t2 = el("div", { style: { fontSize: "13px", color: C.muted, marginBottom: "16px" } });
+      t2.textContent = (saved && saved.studyStartIdx || 0) + 1 + "~" + ((saved && saved.studyStartIdx || 0) + (saved && saved.studyCount || 0)) + "\uBC88 \uCE74\uB4DC \xB7 " + savedMode + " \uBAA8\uB4DC \xB7 " + (saved && saved.studyDone || 0) + "/" + (saved && saved.studyCount || 0) + "\uAC1C \uC644\uB8CC";
       box.appendChild(t2);
-      const brow=el('div',{class:'flex'});
-      brow.appendChild(btn('이어서 학습','green',()=>{
-        const queue=base.slice(saved.studyStartIdx,saved.studyStartIdx+saved.studyCount);
-        S.studyQueue=queue;S.studyIdx=saved.studyIdx||0;S.studyDone=saved.studyDone||0;
-        S.studyMode=saved.studyMode||'blank';S.studyStartIdx=saved.studyStartIdx||0;
-        S.studyCount=saved.studyCount||queue.length;
-        S.studyPhase='answering';S.studyInputs=[];S.studyCb=0;S.studyLocked={};
-        S.studyResumePrompt=false;render();
+      const brow = el("div", { class: "flex" });
+      brow.appendChild(btn("\uC774\uC5B4\uC11C \uD559\uC2B5", "green", () => {
+        const queue2 = base.slice(saved.studyStartIdx, saved.studyStartIdx + saved.studyCount);
+        S.studyQueue = queue2;
+        S.studyIdx = saved.studyIdx || 0;
+        S.studyDone = saved.studyDone || 0;
+        S.studyMode = saved.studyMode || "blank";
+        S.studyStartIdx = saved.studyStartIdx || 0;
+        S.studyCount = saved.studyCount || queue2.length;
+        S.studyPhase = "answering";
+        S.studyInputs = [];
+        S.studyCb = 0;
+        S.studyLocked = {};
+        S.studyResumePrompt = false;
+        render();
       }));
-      brow.appendChild(btn('처음부터','',()=>{
+      brow.appendChild(btn("\uCC98\uC74C\uBD80\uD130", "", () => {
         clearStudy();
-        set({studyResumePrompt:false,studyCount:0,studyStartIdx:0,studyQueue:[],
-          studyIdx:0,studyDone:0,studyMode:'blank',studyPhase:'answering',
-          studyInputs:[],studyCb:0,studyLocked:{}});
+        set({
+          studyResumePrompt: false,
+          studyCount: 0,
+          studyStartIdx: 0,
+          studyQueue: [],
+          studyIdx: 0,
+          studyDone: 0,
+          studyMode: "blank",
+          studyPhase: "answering",
+          studyInputs: [],
+          studyCb: 0,
+          studyLocked: {}
+        });
       }));
       box.appendChild(brow);
     }
     return box;
   }
-
-  // ── 개수 선택 화면 ──────────────────────────────────────────────────
-  if(!studyCount){
-    const wrap=el('div',{});
-    const box=el('div',{class:'card-box'});
-    const t=el('div',{style:{fontWeight:'800',fontSize:'15px',marginBottom:'6px',color:C.text}});
-    t.textContent='학습할 카드 수 선택';box.appendChild(t);
-    const sub=el('div',{style:{fontSize:'12px',color:C.muted,marginBottom:'16px'}});
-    sub.textContent='전체 '+base.length+'개 · '+studyStartIdx+'번부터';box.appendChild(sub);
-    const opts=el('div',{class:'flex',style:{flexWrap:'wrap',gap:'8px',marginBottom:'16px'}});
-    [10,20,30,50].filter(n=>n<base.length-studyStartIdx).concat([base.length-studyStartIdx]).forEach(function(n){
-      const label=n===base.length-studyStartIdx?'전체 ('+(base.length-studyStartIdx)+'개)':n+'개';
-      opts.appendChild(btn(label,'',function(){
+  if (!studyCount) {
+    let doCustom = function() {
+      const n = Math.min(Math.max(parseInt(customInp.value) || 1, 1), base.length - studyStartIdx);
+      startStudy(n);
+    };
+    const wrap2 = el("div", {});
+    const box = el("div", { class: "card-box" });
+    const t = el("div", { style: { fontWeight: "800", fontSize: "15px", marginBottom: "6px", color: C.text } });
+    t.textContent = "\uD559\uC2B5\uD560 \uCE74\uB4DC \uC218 \uC120\uD0DD";
+    box.appendChild(t);
+    const sub = el("div", { style: { fontSize: "12px", color: C.muted, marginBottom: "16px" } });
+    sub.textContent = "\uC804\uCCB4 " + base.length + "\uAC1C \xB7 " + studyStartIdx + "\uBC88\uBD80\uD130";
+    box.appendChild(sub);
+    const opts = el("div", { class: "flex", style: { flexWrap: "wrap", gap: "8px", marginBottom: "16px" } });
+    [10, 20, 30, 50].filter((n) => n < base.length - studyStartIdx).concat([base.length - studyStartIdx]).forEach(function(n) {
+      const label = n === base.length - studyStartIdx ? "\uC804\uCCB4 (" + (base.length - studyStartIdx) + "\uAC1C)" : n + "\uAC1C";
+      opts.appendChild(btn(label, "", function() {
         startStudy(n);
       }));
     });
     box.appendChild(opts);
-    const customRow=el('div',{class:'flex'});
-    const customInp=el('input',{class:'inp',type:'number',placeholder:'직접 입력',style:{width:'110px',marginBottom:'0',textAlign:'center'}});
-    customInp.addEventListener('keydown',function(e){if(e.key==='Enter')doCustom();});
+    const customRow = el("div", { class: "flex" });
+    const customInp = el("input", { class: "inp", type: "number", placeholder: "\uC9C1\uC811 \uC785\uB825", style: { width: "110px", marginBottom: "0", textAlign: "center" } });
+    customInp.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") doCustom();
+    });
     customRow.appendChild(customInp);
-    customRow.appendChild(btn('확인','teal',function(){doCustom();}));
-    function doCustom(){
-      const n=Math.min(Math.max(parseInt(customInp.value)||1,1),base.length-studyStartIdx);
-      startStudy(n);
-    }
+    customRow.appendChild(btn("\uD655\uC778", "teal", function() {
+      doCustom();
+    }));
     box.appendChild(customRow);
-    if(studyStartIdx>0){
-      const resetRow=el('div',{style:{marginTop:'12px'}});
-      resetRow.appendChild(btn('처음(1번)부터','',function(){
-        set({studyStartIdx:0,studyCount:0});
+    if (studyStartIdx > 0) {
+      const resetRow = el("div", { style: { marginTop: "12px" } });
+      resetRow.appendChild(btn("\uCC98\uC74C(1\uBC88)\uBD80\uD130", "", function() {
+        set({ studyStartIdx: 0, studyCount: 0 });
       }));
       box.appendChild(resetRow);
     }
-    wrap.appendChild(box);return wrap;
+    wrap2.appendChild(box);
+    return wrap2;
   }
-
-  function startStudy(n){
-    const queue=base.slice(studyStartIdx,studyStartIdx+n);
-    S.studyQueue=queue;
-    set({studyCount:n,studyMode:'blank',studyIdx:0,studyDone:0,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});
+  function startStudy(n) {
+    const queue2 = base.slice(studyStartIdx, studyStartIdx + n);
+    S.studyQueue = queue2;
+    set({ studyCount: n, studyMode: "blank", studyIdx: 0, studyDone: 0, studyPhase: "answering", studyInputs: [], studyCb: 0, studyLocked: {} });
   }
-
-  // ── 학습 진행 ────────────────────────────────────────────────────────
-  const queue=S.studyQueue.length?S.studyQueue:base.slice(studyStartIdx,studyStartIdx+studyCount);
-  if(!S.studyQueue.length)S.studyQueue=queue;
-
-  // ── 완료 화면 ────────────────────────────────────────────────────────
-  if(S.studyIdx>=queue.length){
-    // 완료 상태 저장 (홈 갔다가 다음 구간 이어하기 위해)
-    const nextStart2=studyStartIdx+studyCount;
-    if(nextStart2<base.length){
-      saveStudy({selSub,selCh,studyIdx:queue.length,studyDone:queue.length,
-        studyMode,studyStartIdx,studyCount,completed:true});
+  const queue = S.studyQueue.length ? S.studyQueue : base.slice(studyStartIdx, studyStartIdx + studyCount);
+  if (!S.studyQueue.length) S.studyQueue = queue;
+  if (S.studyIdx >= queue.length) {
+    let _addNextOptions = function() {
+      if (hasMore) {
+        const nextCount = Math.min(studyCount, base.length - nextStart);
+        opts.appendChild(btn("\uB2E4\uC74C " + nextCount + "\uAC1C \uD559\uC2B5 \u2192", "accent", () => {
+          const nextQueue = base.slice(nextStart, nextStart + studyCount);
+          S.studyQueue = nextQueue;
+          set({ studyStartIdx: nextStart, studyCount: nextCount, studyQueue: nextQueue, studyIdx: 0, studyDone: 0, studyMode: "blank", studyPhase: "answering", studyInputs: [], studyCb: 0, studyLocked: {} });
+        }));
+      } else {
+        opts.appendChild(el("div", { style: { fontSize: "13px", color: C.muted, padding: "4px 0" } }, "\uBAA8\uB4E0 \uCE74\uB4DC\uB97C \uD559\uC2B5\uD588\uC5B4\uC694!"));
+        opts.appendChild(btn("\uCC98\uC74C(1\uBC88)\uBD80\uD130 \uB2E4\uC2DC", "", () => {
+          set({ studyStartIdx: 0, studyCount: 0, studyQueue: [], studyIdx: 0, studyDone: 0, studyMode: "blank" });
+        }));
+      }
+    };
+    const nextStart2 = studyStartIdx + studyCount;
+    if (nextStart2 < base.length) {
+      saveStudy({
+        selSub,
+        selCh,
+        studyIdx: queue.length,
+        studyDone: queue.length,
+        studyMode,
+        studyStartIdx,
+        studyCount,
+        completed: true
+      });
     } else {
       clearStudy();
     }
-    const modeLabel={'blank':'빈칸 완료!','cho':'초성 완료!','muk':'통암기 완료!'};
-    const modeColor={'blank':C.green,'cho':C.teal,'muk':C.purple};
-    const wrap=el('div',{style:{textAlign:'center',padding:'30px 20px'}});
-    wrap.appendChild(el('div',{style:{fontSize:'28px',fontWeight:'800',color:modeColor[studyMode]||C.green,marginBottom:'6px'}},modeLabel[studyMode]||'완료!'));
-    wrap.appendChild(el('div',{style:{color:C.muted,marginBottom:'6px'}},
-      (studyStartIdx+1)+'~'+(studyStartIdx+studyCount)+'번 카드 · '+queue.length+'개'));
-    const opts=el('div',{class:'complete-opts'});
-
-    const hasCho=queue.some(c=>parseBody(c.body).some(p=>p.type==='cho'));
-    const nextStart=studyStartIdx+studyCount;
-    const hasMore=nextStart<base.length;
-
-    if(studyMode==='blank'){
-      if(hasCho){
-        const choBtn=btn('초성 학습 시작 →','teal',()=>{
-          S.studyQueue=queue;
-          set({studyMode:'cho',studyIdx:0,studyDone:0,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});
+    const modeLabel = { "blank": "\uBE48\uCE78 \uC644\uB8CC!", "cho": "\uCD08\uC131 \uC644\uB8CC!", "muk": "\uD1B5\uC554\uAE30 \uC644\uB8CC!" };
+    const modeColor2 = { "blank": C.green, "cho": C.teal, "muk": C.purple };
+    const wrap2 = el("div", { style: { textAlign: "center", padding: "30px 20px" } });
+    wrap2.appendChild(el("div", { style: { fontSize: "28px", fontWeight: "800", color: modeColor2[studyMode] || C.green, marginBottom: "6px" } }, modeLabel[studyMode] || "\uC644\uB8CC!"));
+    wrap2.appendChild(el(
+      "div",
+      { style: { color: C.muted, marginBottom: "6px" } },
+      studyStartIdx + 1 + "~" + (studyStartIdx + studyCount) + "\uBC88 \uCE74\uB4DC \xB7 " + queue.length + "\uAC1C"
+    ));
+    const opts = el("div", { class: "complete-opts" });
+    const hasCho = queue.some((c) => parseBody(c.body).some((p) => p.type === "cho"));
+    const nextStart = studyStartIdx + studyCount;
+    const hasMore = nextStart < base.length;
+    if (studyMode === "blank") {
+      if (hasCho) {
+        const choBtn = btn("\uCD08\uC131 \uD559\uC2B5 \uC2DC\uC791 \u2192", "teal", () => {
+          S.studyQueue = queue;
+          set({ studyMode: "cho", studyIdx: 0, studyDone: 0, studyPhase: "answering", studyInputs: [], studyCb: 0, studyLocked: {} });
         });
-        choBtn.style.fontSize='15px';choBtn.style.padding='10px 28px';opts.appendChild(choBtn);
+        choBtn.style.fontSize = "15px";
+        choBtn.style.padding = "10px 28px";
+        opts.appendChild(choBtn);
       } else {
-        // 초성 없으면 바로 다음 구간 옵션
         _addNextOptions();
       }
-      opts.appendChild(btn('같은 구간 빈칸 다시','',()=>{
-        S.studyQueue=queue;set({studyMode:'blank',studyIdx:0,studyDone:0,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});
+      opts.appendChild(btn("\uAC19\uC740 \uAD6C\uAC04 \uBE48\uCE78 \uB2E4\uC2DC", "", () => {
+        S.studyQueue = queue;
+        set({ studyMode: "blank", studyIdx: 0, studyDone: 0, studyPhase: "answering", studyInputs: [], studyCb: 0, studyLocked: {} });
       }));
-    } else if(studyMode==='cho'){
+    } else if (studyMode === "cho") {
       _addNextOptions();
-      opts.appendChild(btn('같은 구간 다시 학습','',()=>{
-        S.studyQueue=queue;set({studyMode:'blank',studyIdx:0,studyDone:0,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});
+      opts.appendChild(btn("\uAC19\uC740 \uAD6C\uAC04 \uB2E4\uC2DC \uD559\uC2B5", "", () => {
+        S.studyQueue = queue;
+        set({ studyMode: "blank", studyIdx: 0, studyDone: 0, studyPhase: "answering", studyInputs: [], studyCb: 0, studyLocked: {} });
       }));
     } else {
       _addNextOptions();
-      opts.appendChild(btn('같은 구간 다시 학습','',()=>{
-        S.studyQueue=queue;set({studyMode:'blank',studyIdx:0,studyDone:0,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});
+      opts.appendChild(btn("\uAC19\uC740 \uAD6C\uAC04 \uB2E4\uC2DC \uD559\uC2B5", "", () => {
+        S.studyQueue = queue;
+        set({ studyMode: "blank", studyIdx: 0, studyDone: 0, studyPhase: "answering", studyInputs: [], studyCb: 0, studyLocked: {} });
       }));
     }
-    opts.appendChild(btn('홈으로','',()=>set({view:'home'})));
-    wrap.appendChild(opts);
-
-    function _addNextOptions(){
-      if(hasMore){
-        const nextCount=Math.min(studyCount,base.length-nextStart);
-        opts.appendChild(btn('다음 '+nextCount+'개 학습 →','accent',()=>{
-          const nextQueue=base.slice(nextStart,nextStart+studyCount);
-          S.studyQueue=nextQueue;
-          set({studyStartIdx:nextStart,studyCount:nextCount,studyQueue:nextQueue,studyIdx:0,studyDone:0,studyMode:'blank',studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});
-        }));
-      } else {
-        opts.appendChild(el('div',{style:{fontSize:'13px',color:C.muted,padding:'4px 0'}},'모든 카드를 학습했어요!'));
-        opts.appendChild(btn('처음(1번)부터 다시','',()=>{
-          set({studyStartIdx:0,studyCount:0,studyQueue:[],studyIdx:0,studyDone:0,studyMode:'blank'});
-        }));
-      }
-    }
-    return wrap;
+    opts.appendChild(btn("\uD648\uC73C\uB85C", "", () => set({ view: "home" })));
+    wrap2.appendChild(opts);
+    return wrap2;
   }
-
-  const card=queue[S.studyIdx];
-  if(!card){S.studyIdx++;render();return null;}
-  const parts=parseForMode(card.body,studyMode);
-  const actives=getActiveParts(parts,studyMode);
-  if(!actives.length){S.studyIdx++;S.studyDone++;render();return null;}
-
-  const sn=getSN(subjects,card),cn=getCN(subjects,card);
-  const progressPct=queue.length?(S.studyDone/queue.length)*100:0;
-  const unlockedCount=actives.filter(function(_,i){return !S.studyLocked[i];}).length;
-  const nextUnlocked=from=>{let i=from;while(i<actives.length&&S.studyLocked[i])i++;return i;};
-  const hi=val=>{const n=[...S.studyInputs];n[S.studyCb]=val;S.studyInputs=n;};
-  const ne=()=>{
-    if(S.studyPhase==='result'){
-      if(studyMode==='muk'){
-        const nd=S.studyDone+1,ni=S.studyIdx+1;
-        saveStudy({selSub,selCh,studyIdx:ni,studyDone:nd,studyMode,studyStartIdx,studyCount});
-        if(ni>=queue.length)clearStudy();
-        set({studyDone:nd,studyIdx:ni,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});
+  const card = queue[S.studyIdx];
+  if (!card) {
+    S.studyIdx++;
+    render();
+    return null;
+  }
+  const parts = parseForMode(card.body, studyMode);
+  const actives = getActiveParts(parts, studyMode);
+  if (!actives.length) {
+    S.studyIdx++;
+    S.studyDone++;
+    render();
+    return null;
+  }
+  const sn = getSN(subjects, card), cn = getCN(subjects, card);
+  const progressPct = queue.length ? S.studyDone / queue.length * 100 : 0;
+  const unlockedCount = actives.filter(function(_, i) {
+    return !S.studyLocked[i];
+  }).length;
+  const nextUnlocked = (from) => {
+    let i = from;
+    while (i < actives.length && S.studyLocked[i]) i++;
+    return i;
+  };
+  const hi = (val) => {
+    const n = [...S.studyInputs];
+    n[S.studyCb] = val;
+    S.studyInputs = n;
+  };
+  const ne = () => {
+    if (S.studyPhase === "result") {
+      if (studyMode === "muk") {
+        const nd = S.studyDone + 1, ni = S.studyIdx + 1;
+        saveStudy({ selSub, selCh, studyIdx: ni, studyDone: nd, studyMode, studyStartIdx, studyCount });
+        if (ni >= queue.length) clearStudy();
+        set({ studyDone: nd, studyIdx: ni, studyPhase: "answering", studyInputs: [], studyCb: 0, studyLocked: {} });
         return;
       }
-      if(studyMode==='blank'){
-        const allOk=actives.every(function(a,i){return (S.studyInputs[i]||'').trim()===a.value.trim();});
-        if(allOk){
-          const nd=S.studyDone+1,ni=S.studyIdx+1;
-          saveStudy({selSub,selCh,studyIdx:ni,studyDone:nd,studyMode,studyStartIdx,studyCount});
-          if(ni>=queue.length)clearStudy();
-          set({studyDone:nd,studyIdx:ni,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});
+      if (studyMode === "blank") {
+        const allOk = actives.every(function(a, i) {
+          return (S.studyInputs[i] || "").trim() === a.value.trim();
+        });
+        if (allOk) {
+          const nd = S.studyDone + 1, ni = S.studyIdx + 1;
+          saveStudy({ selSub, selCh, studyIdx: ni, studyDone: nd, studyMode, studyStartIdx, studyCount });
+          if (ni >= queue.length) clearStudy();
+          set({ studyDone: nd, studyIdx: ni, studyPhase: "answering", studyInputs: [], studyCb: 0, studyLocked: {} });
         } else {
-          const nl={};actives.forEach(function(a,i){if((S.studyInputs[i]||'').trim()===a.value.trim())nl[i]=true;});
-          const ni2=actives.map(function(a,i){return nl[i]?a.value:'';});
-          const fi=ni2.findIndex(function(_,i){return !nl[i];});
-          set({studyPhase:'answering',studyLocked:nl,studyInputs:ni2,studyCb:fi>=0?fi:0});
+          const nl = {};
+          actives.forEach(function(a, i) {
+            if ((S.studyInputs[i] || "").trim() === a.value.trim()) nl[i] = true;
+          });
+          const ni2 = actives.map(function(a, i) {
+            return nl[i] ? a.value : "";
+          });
+          const fi = ni2.findIndex(function(_, i) {
+            return !nl[i];
+          });
+          set({ studyPhase: "answering", studyLocked: nl, studyInputs: ni2, studyCb: fi >= 0 ? fi : 0 });
         }
       } else {
-        const allOk=actives.every(function(a,i){return (S.studyInputs[i]||'').trim()===a.value.trim();});
-        if(allOk){
-          const nd=S.studyDone+1,ni=S.studyIdx+1;
-          saveStudy({selSub,selCh,studyIdx:ni,studyDone:nd,studyMode,studyStartIdx,studyCount});
-          if(ni>=queue.length)clearStudy();
-          set({studyDone:nd,studyIdx:ni,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});
+        const allOk = actives.every(function(a, i) {
+          return (S.studyInputs[i] || "").trim() === a.value.trim();
+        });
+        if (allOk) {
+          const nd = S.studyDone + 1, ni = S.studyIdx + 1;
+          saveStudy({ selSub, selCh, studyIdx: ni, studyDone: nd, studyMode, studyStartIdx, studyCount });
+          if (ni >= queue.length) clearStudy();
+          set({ studyDone: nd, studyIdx: ni, studyPhase: "answering", studyInputs: [], studyCb: 0, studyLocked: {} });
         } else {
-          const nl={};actives.forEach(function(a,i){if((S.studyInputs[i]||'').trim()===a.value.trim())nl[i]=true;});
-          const ni2=actives.map(function(a,i){return nl[i]?a.value:'';});
-          const fi=ni2.findIndex(function(_,i){return !nl[i];});
-          set({studyPhase:'answering',studyLocked:nl,studyInputs:ni2,studyCb:fi>=0?fi:0});
+          const nl = {};
+          actives.forEach(function(a, i) {
+            if ((S.studyInputs[i] || "").trim() === a.value.trim()) nl[i] = true;
+          });
+          const ni2 = actives.map(function(a, i) {
+            return nl[i] ? a.value : "";
+          });
+          const fi = ni2.findIndex(function(_, i) {
+            return !nl[i];
+          });
+          set({ studyPhase: "answering", studyLocked: nl, studyInputs: ni2, studyCb: fi >= 0 ? fi : 0 });
         }
       }
       return;
     }
-    if(studyMode==='cho'||studyMode==='muk'){
-      const next=nextUnlocked(S.studyCb+1);
-      if(next<actives.length)set({studyCb:next});else set({studyPhase:'result'});
+    if (studyMode === "cho" || studyMode === "muk") {
+      const next = nextUnlocked(S.studyCb + 1);
+      if (next < actives.length) set({ studyCb: next });
+      else set({ studyPhase: "result" });
     } else {
-      const next=nextUnlocked(S.studyCb+1);
-      if(next<actives.length)set({studyCb:next});else set({studyPhase:'result'});
+      const next = nextUnlocked(S.studyCb + 1);
+      if (next < actives.length) set({ studyCb: next });
+      else set({ studyPhase: "result" });
     }
   };
-
-  const ref={el:null};
-  const bodyEl=renderQuizBody(parts,S.studyPhase,S.studyInputs,S.studyCb,S.studyLocked,ref,hi,ne,studyMode);
-  setTimeout(()=>ref.el&&ref.el.focus(),80);
-
-  const correctNow=actives.filter(function(_,i){return (S.studyInputs[i]||'').trim()===actives[i].value.trim();}).length;
-  const totalCount=actives.length;
-  const isMuk=studyMode==='muk';
-  const isChoMode=studyMode==='cho';
-  const modeColor=isMuk?C.purple:isChoMode?C.teal:C.green;
-  const modeCls=isMuk?'mb':isChoMode?'tb':'gb';
-
-  const wrap=el('div',{class:'fade'});
-  const modeNames={'blank':'빈칸 학습','cho':'초성 학습','muk':'통암기 학습'};
-  const mb=el('span',{class:'mode-badge',style:{color:modeColor,borderColor:modeColor,background:'rgba(0,0,0,.04)'}});
-  mb.textContent=modeNames[studyMode]||'학습';wrap.appendChild(mb);
-
-  // 진행바
-  const pb=el('div',{class:'flex',style:{marginBottom:'8px'}});
-  pb.appendChild(el('span',{style:{fontSize:'12px',color:C.muted,fontWeight:'700'}},sn+' · '+cn));
-  const bar=el('div',{class:'progress-bar'});
-  bar.appendChild(el('div',{class:'progress-fill',style:{width:progressPct+'%',background:modeColor}}));
+  const ref = { el: null };
+  const bodyEl = renderQuizBody(parts, S.studyPhase, S.studyInputs, S.studyCb, S.studyLocked, ref, hi, ne, studyMode);
+  setTimeout(() => ref.el && ref.el.focus(), 80);
+  const correctNow = actives.filter(function(_, i) {
+    return (S.studyInputs[i] || "").trim() === actives[i].value.trim();
+  }).length;
+  const totalCount = actives.length;
+  const isMuk = studyMode === "muk";
+  const isChoMode = studyMode === "cho";
+  const modeColor = isMuk ? C.purple : isChoMode ? C.teal : C.green;
+  const modeCls = isMuk ? "mb" : isChoMode ? "tb" : "gb";
+  const wrap = el("div", { class: "fade" });
+  const modeNames = { "blank": "\uBE48\uCE78 \uD559\uC2B5", "cho": "\uCD08\uC131 \uD559\uC2B5", "muk": "\uD1B5\uC554\uAE30 \uD559\uC2B5" };
+  const mb = el("span", { class: "mode-badge", style: { color: modeColor, borderColor: modeColor, background: "rgba(0,0,0,.04)" } });
+  mb.textContent = modeNames[studyMode] || "\uD559\uC2B5";
+  wrap.appendChild(mb);
+  const pb = el("div", { class: "flex", style: { marginBottom: "8px" } });
+  pb.appendChild(el("span", { style: { fontSize: "12px", color: C.muted, fontWeight: "700" } }, sn + " \xB7 " + cn));
+  const bar = el("div", { class: "progress-bar" });
+  bar.appendChild(el("div", { class: "progress-fill", style: { width: progressPct + "%", background: modeColor } }));
   pb.appendChild(bar);
-  pb.appendChild(el('span',{style:{fontSize:'12px',color:modeColor,fontWeight:'800'}},S.studyDone+'/'+queue.length+' 완료'));
+  pb.appendChild(el("span", { style: { fontSize: "12px", color: modeColor, fontWeight: "800" } }, S.studyDone + "/" + queue.length + " \uC644\uB8CC"));
   wrap.appendChild(pb);
-
-  // 구간 표시
-  const rangeEl=el('div',{style:{fontSize:'11px',color:C.muted,marginBottom:'6px',fontWeight:'700'}});
-  rangeEl.textContent=(studyStartIdx+1)+'~'+(studyStartIdx+studyCount)+'번 카드';wrap.appendChild(rangeEl);
-
-  if(Object.keys(S.studyLocked).length>0){
-    const ln=el('div',{class:'locked-notice'});ln.textContent='초록 빈칸은 맞췄습니다 · 남은 '+unlockedCount+'개';wrap.appendChild(ln);
+  const rangeEl = el("div", { style: { fontSize: "11px", color: C.muted, marginBottom: "6px", fontWeight: "700" } });
+  rangeEl.textContent = studyStartIdx + 1 + "~" + (studyStartIdx + studyCount) + "\uBC88 \uCE74\uB4DC";
+  wrap.appendChild(rangeEl);
+  if (Object.keys(S.studyLocked).length > 0) {
+    const ln = el("div", { class: "locked-notice" });
+    ln.textContent = "\uCD08\uB85D \uBE48\uCE78\uC740 \uB9DE\uCDC4\uC2B5\uB2C8\uB2E4 \xB7 \uB0A8\uC740 " + unlockedCount + "\uAC1C";
+    wrap.appendChild(ln);
   }
-  const qcard=el('div',{class:'quiz-card '+modeCls});
-  qcard.appendChild(el('div',{style:{fontWeight:'800',fontSize:'20px',marginBottom:'10px',color:C.text}},card.title));
-  if(card.hint)qcard.appendChild(el('div',{class:'hint-box'},'힌트: '+card.hint));
+  const qcard = el("div", { class: "quiz-card " + modeCls });
+  qcard.appendChild(el("div", { style: { fontWeight: "800", fontSize: "20px", marginBottom: "10px", color: C.text } }, card.title));
+  if (card.hint) qcard.appendChild(el("div", { class: "hint-box" }, "\uD78C\uD2B8: " + card.hint));
   qcard.appendChild(bodyEl);
-
-  const footer=el('div',{style:{paddingTop:'12px',borderTop:'1px dashed #f0c8a0'}});
-  if(S.studyPhase==='answering'){
-    const fl=el('div',{class:'flex'});
-    const ulIdx=actives.map(function(_,i){return i;}).filter(function(i){return !S.studyLocked[i];});
-    const modeWord=isMuk?'통암기':isChoMode?'초성':'빈칸';
-    fl.appendChild(el('span',{style:{fontSize:'13px',color:C.muted,fontWeight:'700'}},modeWord+' '+(ulIdx.indexOf(S.studyCb)+1)+' / '+unlockedCount));
-    fl.appendChild(btn(nextUnlocked(S.studyCb+1)<actives.length?'다음':'채점',isMuk?'purple':isChoMode?'teal':'green',ne));
+  const footer = el("div", { style: { paddingTop: "12px", borderTop: "1px dashed #f0c8a0" } });
+  if (S.studyPhase === "answering") {
+    const fl = el("div", { class: "flex" });
+    const ulIdx = actives.map(function(_, i) {
+      return i;
+    }).filter(function(i) {
+      return !S.studyLocked[i];
+    });
+    const modeWord = isMuk ? "\uD1B5\uC554\uAE30" : isChoMode ? "\uCD08\uC131" : "\uBE48\uCE78";
+    fl.appendChild(el("span", { style: { fontSize: "13px", color: C.muted, fontWeight: "700" } }, modeWord + " " + (ulIdx.indexOf(S.studyCb) + 1) + " / " + unlockedCount));
+    fl.appendChild(btn(nextUnlocked(S.studyCb + 1) < actives.length ? "\uB2E4\uC74C" : "\uCC44\uC810", isMuk ? "purple" : isChoMode ? "teal" : "green", ne));
     footer.appendChild(fl);
   } else {
-    const fl=el('div',{class:'flex'});
-    fl.appendChild(el('span',{style:{fontWeight:'800'}},[
-      el('span',{style:{color:correctNow===totalCount?C.green:C.red,fontSize:'18px'}},String(correctNow)),
-      el('span',{style:{color:C.muted}},' / '+totalCount+' 정답')
+    const fl = el("div", { class: "flex" });
+    fl.appendChild(el("span", { style: { fontWeight: "800" } }, [
+      el("span", { style: { color: correctNow === totalCount ? C.green : C.red, fontSize: "18px" } }, String(correctNow)),
+      el("span", { style: { color: C.muted } }, " / " + totalCount + " \uC815\uB2F5")
     ]));
-    if(isMuk){
-      fl.appendChild(btn('다음 카드','purple',function(){
-        const nd2=S.studyDone+1,ni2=S.studyIdx+1;
-        saveStudy({selSub,selCh,studyIdx:ni2,studyDone:nd2,studyMode,studyStartIdx,studyCount});
-        if(ni2>=queue.length)clearStudy();
-        set({studyDone:nd2,studyIdx:ni2,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});
+    if (isMuk) {
+      fl.appendChild(btn("\uB2E4\uC74C \uCE74\uB4DC", "purple", function() {
+        const nd2 = S.studyDone + 1, ni2 = S.studyIdx + 1;
+        saveStudy({ selSub, selCh, studyIdx: ni2, studyDone: nd2, studyMode, studyStartIdx, studyCount });
+        if (ni2 >= queue.length) clearStudy();
+        set({ studyDone: nd2, studyIdx: ni2, studyPhase: "answering", studyInputs: [], studyCb: 0, studyLocked: {} });
       }));
     } else {
-      fl.appendChild(btn(correctNow===totalCount?'다음 카드':'다시 풀기',correctNow===totalCount?'green':'red',ne));
+      fl.appendChild(btn(correctNow === totalCount ? "\uB2E4\uC74C \uCE74\uB4DC" : "\uB2E4\uC2DC \uD480\uAE30", correctNow === totalCount ? "green" : "red", ne));
     }
     footer.appendChild(fl);
-    if(!isMuk&&correctNow<totalCount)footer.appendChild(el('div',{class:'retry-notice'},'전부 맞혀야 다음 카드로 넘어갑니다'));
+    if (!isMuk && correctNow < totalCount) footer.appendChild(el("div", { class: "retry-notice" }, "\uC804\uBD80 \uB9DE\uD600\uC57C \uB2E4\uC74C \uCE74\uB4DC\uB85C \uB118\uC5B4\uAC11\uB2C8\uB2E4"));
   }
-  qcard.appendChild(footer);wrap.appendChild(qcard);return wrap;
+  qcard.appendChild(footer);
+  wrap.appendChild(qcard);
+  return wrap;
 }
-
-function renderTest(){
-  const{data,testStarted,testDeck,testIdx,testPhase,testInputs,testCb,testResults,testSelSub,testSelCh}=S;
-  const{subjects,cards}=data;const allCh=getChapters(subjects,testSelSub);
-  if(!testStarted){
-    const filtered=cards.filter(c=>{if(testSelSub&&c.subjectId!==testSelSub)return false;if(testSelCh&&c.chapterId!==testSelCh)return false;return true;});
-    const box=el('div',{class:'card-box'});
-    const grid=el('div',{class:'grid2',style:{marginBottom:'20px'}});
-    const subSel=el('select',{class:'inp',onChange:e=>set({testSelSub:e.target.value,testSelCh:null})});
-    subSel.appendChild(el('option',{value:''},'전체 과목'));subjects.forEach(s=>{const o=el('option',{value:s.id},s.name);if(s.id===testSelSub)o.selected=true;subSel.appendChild(o);});
-    const chSel=el('select',{class:'inp',onChange:e=>set({testSelCh:e.target.value})});
-    chSel.appendChild(el('option',{value:''},'전체 챕터'));if(testSelSub){allCh.forEach(c=>{const o=el('option',{value:c.id},c.name);if(c.id===testSelCh)o.selected=true;chSel.appendChild(o);});}else chSel.disabled=true;
-    const d1=el('div');d1.appendChild(lbl('과목'));d1.appendChild(subSel);
-    const d2=el('div');d2.appendChild(lbl('챕터'));d2.appendChild(chSel);
-    grid.appendChild(d1);grid.appendChild(d2);box.appendChild(grid);
-    box.appendChild(el('div',{class:'start-info'},`선택된 카드: ${filtered.length}개 · 랜덤 순서 · 빈칸 모드`));
-    box.appendChild(btn('테스트 시작','purple',()=>{
-      if(!filtered.length){alert('카드가 없습니다.');return;}
-      set({testStarted:true,testDeck:shuffle(filtered),testIdx:0,testPhase:'answering',testInputs:[],testCb:0,testResults:[]});
-    }));
-    return el('div',{class:'fade'},[sectionEl('테스트 범위 선택',[box])]);
-  }
-  if(testIdx>=testDeck.length){
-    const total=testResults.reduce((s,r)=>s+r.total,0),correct=testResults.reduce((s,r)=>s+r.correct,0),pct=total>0?Math.round(correct/total*100):0,wrong=testResults.filter(r=>r.correct<r.total);
-    // 테스트 이력 저장
-    try{const hist=JSON.parse(localStorage.getItem('bq_testhist')||'[]');hist.unshift({date:new Date().toISOString(),subjectId:testSelSub,chapterId:testSelCh,score:pct,correct,total,count:testDeck.length});localStorage.setItem('bq_testhist',JSON.stringify(hist.slice(0,50)));}catch{}
-    const wrap=el('div',{style:{animation:'fadeIn .4s ease'}});
-    const center=el('div',{style:{textAlign:'center',marginBottom:'24px'}});
-    center.appendChild(el('div',{style:{fontSize:'32px',fontWeight:'800',color:C.purple,marginBottom:'8px'}},'테스트 완료!'));
-    center.appendChild(el('div',{class:'score-big',style:{color:pct>=80?C.green:pct>=60?C.yellow:C.red}},`${pct}점`));
-    center.appendChild(el('div',{style:{color:C.muted,fontSize:'14px'}},`${correct} / ${total} 빈칸 정답 · ${testDeck.length}문제 · ${new Date().toLocaleDateString('ko-KR')}`));
-    wrap.appendChild(center);
-    if(wrong.length){wrap.appendChild(el('div',{style:{fontSize:'13px',fontWeight:'800',color:C.red,marginBottom:'10px'}},`오답 카드 (${wrong.length}개)`));wrong.forEach(r=>{const wc=el('div',{class:'wrong-card'});wc.appendChild(el('div',{style:{fontWeight:'700',fontSize:'13px',marginBottom:'4px'}},r.card.title));wc.appendChild(el('div',{style:{fontSize:'12px',color:C.muted}},`${r.correct}/${r.total} 정답`));wrap.appendChild(wc);});}
-    const btns=el('div',{class:'flex',style:{justifyContent:'center',marginTop:'16px',flexWrap:'wrap'}});
-    btns.appendChild(btn('다시 설정','',()=>set({testStarted:false})));
-    btns.appendChild(btn('전체 재시험','purple',()=>{const f=cards.filter(c=>{if(testSelSub&&c.subjectId!==testSelSub)return false;if(testSelCh&&c.chapterId!==testSelCh)return false;return true;});set({testDeck:shuffle(f),testIdx:0,testPhase:'answering',testInputs:[],testCb:0,testResults:[]});}));
-    if(wrong.length)btns.appendChild(btn('오답만 재시험','red',()=>{set({testDeck:shuffle(wrong.map(r=>r.card)),testIdx:0,testPhase:'answering',testInputs:[],testCb:0,testResults:[]});}));
-    btns.appendChild(btn('홈으로','',()=>set({view:'home'})));
-    wrap.appendChild(btns);return wrap;
-  }
-  const card=testDeck[testIdx];
-  const parts=parseForMode(card.body,'blank');
-  const blanks=parts.filter(p=>p.type==='blank'); // 테스트는 빈칸만
-  const sn=getSN(subjects,card);const cn=getCN(subjects,card);
-  const hi=val=>{const n=[...testInputs];n[testCb]=val;S.testInputs=n;};
-  const cor=i=>(testInputs[i]||'').trim()===(blanks[i]?blanks[i].value:'').trim();
-  const ne=()=>{if(testPhase==='result'){const cc=blanks.filter((_,i)=>cor(i)).length;set({testResults:[...testResults,{card,correct:cc,total:blanks.length}],testIdx:testIdx+1,testPhase:'answering',testInputs:[],testCb:0});return;}if(testCb<blanks.length-1)set({testCb:testCb+1});else set({testPhase:'result'});};
-  const ref={el:null};const bodyEl=renderQuizBody(parts,testPhase,testInputs,testCb,null,ref,hi,ne,'blank');setTimeout(()=>ref.el&&ref.el.focus(),80);
-  const wrap=el('div',{class:'fade'});
-  const pb=el('div',{class:'flex',style:{marginBottom:'12px'}});pb.appendChild(el('span',{style:{fontSize:'12px',color:C.muted,fontWeight:'700'}},`${sn} · ${cn}`));const bar=el('div',{class:'progress-bar'});bar.appendChild(el('div',{class:'progress-fill',style:{width:`${(testIdx/testDeck.length)*100}%`,background:C.purple}}));pb.appendChild(bar);pb.appendChild(el('span',{style:{fontSize:'12px',color:C.purple,fontWeight:'800'}},`${testIdx+1} / ${testDeck.length}`));wrap.appendChild(pb);
-  const qcard=el('div',{class:'quiz-card pb'});qcard.appendChild(el('div',{style:{fontWeight:'800',fontSize:'20px',marginBottom:'10px',color:C.text}},card.title));if(card.hint)qcard.appendChild(el('div',{class:'hint-box'},`힌트: ${card.hint}`));qcard.appendChild(bodyEl);
-  const footer=el('div',{style:{paddingTop:'12px',borderTop:'1px dashed #f0c8a0'}});
-  if(testPhase==='answering'){const fl=el('div',{class:'flex'});fl.appendChild(el('span',{style:{fontSize:'13px',color:C.muted,fontWeight:'700'}},`빈칸 ${testCb+1} / ${blanks.length}`));fl.appendChild(btn(testCb<blanks.length-1?'다음 빈칸':'채점','purple',ne));footer.appendChild(fl);}
-  else{const cc=blanks.filter((_,i)=>cor(i)).length;const fl=el('div',{class:'flex'});fl.appendChild(el('span',{style:{fontWeight:'800'}},[el('span',{style:{color:cc===blanks.length?C.green:C.red,fontSize:'18px'}},String(cc)),el('span',{style:{color:C.muted}},` / ${blanks.length} 정답`)]));fl.appendChild(btn('다음 문제','purple',ne));footer.appendChild(fl);}
-  qcard.appendChild(footer);wrap.appendChild(qcard);return wrap;
-}
-
-// ── Review ───────────────────────────────────────────────────────────────────
-function renderReview(){
-  const{data,revStarted,revDeck,revIdx,revPhase,revInputs,revCb,revResults,revSelSub,revSelCh,revNewCount,revRound,revMode,revLocked}=S;
-  const{subjects,cards}=data;
-  const allCh=subjects.find(s=>s.id===revSelSub)?.chapters||[];
-
-  if(!revStarted){
-    const filt=c=>{if(revSelSub&&c.subjectId!==revSelSub)return false;if(revSelCh&&c.chapterId!==revSelCh)return false;return true;};
-    // 오늘 복습 카드: nextReview 있고 오늘 이하 (미이수 자동 이월 포함)
-    const dueCards=cards.filter(c=>c.nextReview&&isDue(c)&&filt(c));
-    // 신규 카드: nextReview 없음 (복습 전이면 이월 없이 대기)
-    const newCards=cards.filter(c=>!c.nextReview&&filt(c));
-    const todayNew=Math.min(newCards.length,S.revNewCount);
-
-    // 복습/신규 둘 다 없을 때만 "없음" 표시
-    // nextReview가 미래인 카드 개수 확인
-    const futureCards=cards.filter(c=>c.nextReview&&!isDue(c)&&filt(c));
-    const nextDate=futureCards.length>0
-      ?futureCards.reduce((min,c)=>c.nextReview<min?c.nextReview:min,futureCards[0].nextReview)
-      :null;
-    if(!dueCards.length&&!newCards.length){
-      const wrap=el('div',{style:{textAlign:'center',padding:'60px'}});
-      wrap.appendChild(el('div',{style:{fontSize:'26px',fontWeight:'800',color:C.teal,marginBottom:'8px'}},'오늘 복습 없음'));
-      if(nextDate){
-        const d=new Date(nextDate);
-        wrap.appendChild(el('div',{style:{color:C.muted,marginBottom:'6px'}},'다음 복습: '+d.toLocaleDateString('ko-KR')));
-        wrap.appendChild(el('div',{style:{fontSize:'13px',color:C.muted,marginBottom:'28px'}},futureCards.length+'개 대기 중'));
-      } else {
-        wrap.appendChild(el('div',{style:{color:C.muted,marginBottom:'28px'}},'복습할 카드가 없습니다'));
+function renderTest() {
+  const { data, testStarted, testDeck, testIdx, testPhase, testInputs, testCb, testResults, testSelSub, testSelCh } = S;
+  const { subjects, cards } = data;
+  const allCh = getChapters(subjects, testSelSub);
+  if (!testStarted) {
+    const filtered = cards.filter((c) => {
+      if (testSelSub && c.subjectId !== testSelSub) return false;
+      if (testSelCh && c.chapterId !== testSelCh) return false;
+      return true;
+    });
+    const box = el("div", { class: "card-box" });
+    const grid = el("div", { class: "grid2", style: { marginBottom: "20px" } });
+    const subSel = el("select", { class: "inp", onChange: (e) => set({ testSelSub: e.target.value, testSelCh: null }) });
+    subSel.appendChild(el("option", { value: "" }, "\uC804\uCCB4 \uACFC\uBAA9"));
+    subjects.forEach((s) => {
+      const o = el("option", { value: s.id }, s.name);
+      if (s.id === testSelSub) o.selected = true;
+      subSel.appendChild(o);
+    });
+    const chSel = el("select", { class: "inp", onChange: (e) => set({ testSelCh: e.target.value }) });
+    chSel.appendChild(el("option", { value: "" }, "\uC804\uCCB4 \uCC55\uD130"));
+    if (testSelSub) {
+      allCh.forEach((c) => {
+        const o = el("option", { value: c.id }, c.name);
+        if (c.id === testSelCh) o.selected = true;
+        chSel.appendChild(o);
+      });
+    } else chSel.disabled = true;
+    const d1 = el("div");
+    d1.appendChild(lbl("\uACFC\uBAA9"));
+    d1.appendChild(subSel);
+    const d2 = el("div");
+    d2.appendChild(lbl("\uCC55\uD130"));
+    d2.appendChild(chSel);
+    grid.appendChild(d1);
+    grid.appendChild(d2);
+    box.appendChild(grid);
+    box.appendChild(el("div", { class: "start-info" }, `\uC120\uD0DD\uB41C \uCE74\uB4DC: ${filtered.length}\uAC1C \xB7 \uB79C\uB364 \uC21C\uC11C \xB7 \uBE48\uCE78 \uBAA8\uB4DC`));
+    box.appendChild(btn("\uD14C\uC2A4\uD2B8 \uC2DC\uC791", "purple", () => {
+      if (!filtered.length) {
+        alert("\uCE74\uB4DC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
+        return;
       }
-      wrap.appendChild(btn('홈으로','teal',()=>set({view:'home'})));
-      return wrap;
+      set({ testStarted: true, testDeck: shuffle(filtered), testIdx: 0, testPhase: "answering", testInputs: [], testCb: 0, testResults: [] });
+    }));
+    return el("div", { class: "fade" }, [sectionEl("\uD14C\uC2A4\uD2B8 \uBC94\uC704 \uC120\uD0DD", [box])]);
+  }
+  if (testIdx >= testDeck.length) {
+    const total = testResults.reduce((s, r) => s + r.total, 0), correct = testResults.reduce((s, r) => s + r.correct, 0), pct = total > 0 ? Math.round(correct / total * 100) : 0, wrong = testResults.filter((r) => r.correct < r.total);
+    try {
+      const hist = JSON.parse(localStorage.getItem("bq_testhist") || "[]");
+      hist.unshift({ date: (/* @__PURE__ */ new Date()).toISOString(), subjectId: testSelSub, chapterId: testSelCh, score: pct, correct, total, count: testDeck.length });
+      localStorage.setItem("bq_testhist", JSON.stringify(hist.slice(0, 50)));
+    } catch {
     }
-
-    const box=el('div',{class:'card-box'});
-    const grid=el('div',{class:'grid2',style:{marginBottom:'16px'}});
-    const subSel=el('select',{class:'inp',onChange:e=>set({revSelSub:e.target.value,revSelCh:null})});
-    subSel.appendChild(el('option',{value:''},'전체 과목'));
-    subjects.forEach(s=>{const o=el('option',{value:s.id},s.name);if(s.id===revSelSub)o.selected=true;subSel.appendChild(o);});
-    const chSel=el('select',{class:'inp',onChange:e=>set({revSelCh:e.target.value})});
-    chSel.appendChild(el('option',{value:''},'전체 챕터'));
-    if(revSelSub){allCh.forEach(c=>{const o=el('option',{value:c.id},c.name);if(c.id===revSelCh)o.selected=true;chSel.appendChild(o);});}
-    else chSel.disabled=true;
-    const d1=el('div');d1.appendChild(lbl('과목'));d1.appendChild(subSel);
-    const d2=el('div');d2.appendChild(lbl('챕터'));d2.appendChild(chSel);
-    grid.appendChild(d1);grid.appendChild(d2);box.appendChild(grid);
-
-    const nRow=el('div',{class:'flex',style:{marginBottom:'16px',alignItems:'center'}});
-    nRow.appendChild(el('span',{style:{fontSize:'13px',color:C.muted,fontWeight:'700'}},'오늘 신규 카드:'));
-    const nInp=el('input',{class:'inp',type:'number',value:String(S.revNewCount),
-      style:{width:'70px',marginBottom:'0',textAlign:'center'},onInput:e=>S.revNewCount=parseInt(e.target.value)||10});
+    const wrap2 = el("div", { style: { animation: "fadeIn .4s ease" } });
+    const center = el("div", { style: { textAlign: "center", marginBottom: "24px" } });
+    center.appendChild(el("div", { style: { fontSize: "32px", fontWeight: "800", color: C.purple, marginBottom: "8px" } }, "\uD14C\uC2A4\uD2B8 \uC644\uB8CC!"));
+    center.appendChild(el("div", { class: "score-big", style: { color: pct >= 80 ? C.green : pct >= 60 ? C.yellow : C.red } }, `${pct}\uC810`));
+    center.appendChild(el("div", { style: { color: C.muted, fontSize: "14px" } }, `${correct} / ${total} \uBE48\uCE78 \uC815\uB2F5 \xB7 ${testDeck.length}\uBB38\uC81C \xB7 ${(/* @__PURE__ */ new Date()).toLocaleDateString("ko-KR")}`));
+    wrap2.appendChild(center);
+    if (wrong.length) {
+      wrap2.appendChild(el("div", { style: { fontSize: "13px", fontWeight: "800", color: C.red, marginBottom: "10px" } }, `\uC624\uB2F5 \uCE74\uB4DC (${wrong.length}\uAC1C)`));
+      wrong.forEach((r) => {
+        const wc = el("div", { class: "wrong-card" });
+        wc.appendChild(el("div", { style: { fontWeight: "700", fontSize: "13px", marginBottom: "4px" } }, r.card.title));
+        wc.appendChild(el("div", { style: { fontSize: "12px", color: C.muted } }, `${r.correct}/${r.total} \uC815\uB2F5`));
+        wrap2.appendChild(wc);
+      });
+    }
+    const btns = el("div", { class: "flex", style: { justifyContent: "center", marginTop: "16px", flexWrap: "wrap" } });
+    btns.appendChild(btn("\uB2E4\uC2DC \uC124\uC815", "", () => set({ testStarted: false })));
+    btns.appendChild(btn("\uC804\uCCB4 \uC7AC\uC2DC\uD5D8", "purple", () => {
+      const f = cards.filter((c) => {
+        if (testSelSub && c.subjectId !== testSelSub) return false;
+        if (testSelCh && c.chapterId !== testSelCh) return false;
+        return true;
+      });
+      set({ testDeck: shuffle(f), testIdx: 0, testPhase: "answering", testInputs: [], testCb: 0, testResults: [] });
+    }));
+    if (wrong.length) btns.appendChild(btn("\uC624\uB2F5\uB9CC \uC7AC\uC2DC\uD5D8", "red", () => {
+      set({ testDeck: shuffle(wrong.map((r) => r.card)), testIdx: 0, testPhase: "answering", testInputs: [], testCb: 0, testResults: [] });
+    }));
+    btns.appendChild(btn("\uD648\uC73C\uB85C", "", () => set({ view: "home" })));
+    wrap2.appendChild(btns);
+    return wrap2;
+  }
+  const card = testDeck[testIdx];
+  const parts = parseForMode(card.body, "blank");
+  const blanks = parts.filter((p) => p.type === "blank");
+  const sn = getSN(subjects, card);
+  const cn = getCN(subjects, card);
+  const hi = (val) => {
+    const n = [...testInputs];
+    n[testCb] = val;
+    S.testInputs = n;
+  };
+  const cor = (i) => (testInputs[i] || "").trim() === (blanks[i] ? blanks[i].value : "").trim();
+  const ne = () => {
+    if (testPhase === "result") {
+      const cc = blanks.filter((_, i) => cor(i)).length;
+      set({ testResults: [...testResults, { card, correct: cc, total: blanks.length }], testIdx: testIdx + 1, testPhase: "answering", testInputs: [], testCb: 0 });
+      return;
+    }
+    if (testCb < blanks.length - 1) set({ testCb: testCb + 1 });
+    else set({ testPhase: "result" });
+  };
+  const ref = { el: null };
+  const bodyEl = renderQuizBody(parts, testPhase, testInputs, testCb, null, ref, hi, ne, "blank");
+  setTimeout(() => ref.el && ref.el.focus(), 80);
+  const wrap = el("div", { class: "fade" });
+  const pb = el("div", { class: "flex", style: { marginBottom: "12px" } });
+  pb.appendChild(el("span", { style: { fontSize: "12px", color: C.muted, fontWeight: "700" } }, `${sn} \xB7 ${cn}`));
+  const bar = el("div", { class: "progress-bar" });
+  bar.appendChild(el("div", { class: "progress-fill", style: { width: `${testIdx / testDeck.length * 100}%`, background: C.purple } }));
+  pb.appendChild(bar);
+  pb.appendChild(el("span", { style: { fontSize: "12px", color: C.purple, fontWeight: "800" } }, `${testIdx + 1} / ${testDeck.length}`));
+  wrap.appendChild(pb);
+  const qcard = el("div", { class: "quiz-card pb" });
+  qcard.appendChild(el("div", { style: { fontWeight: "800", fontSize: "20px", marginBottom: "10px", color: C.text } }, card.title));
+  if (card.hint) qcard.appendChild(el("div", { class: "hint-box" }, `\uD78C\uD2B8: ${card.hint}`));
+  qcard.appendChild(bodyEl);
+  const footer = el("div", { style: { paddingTop: "12px", borderTop: "1px dashed #f0c8a0" } });
+  if (testPhase === "answering") {
+    const fl = el("div", { class: "flex" });
+    fl.appendChild(el("span", { style: { fontSize: "13px", color: C.muted, fontWeight: "700" } }, `\uBE48\uCE78 ${testCb + 1} / ${blanks.length}`));
+    fl.appendChild(btn(testCb < blanks.length - 1 ? "\uB2E4\uC74C \uBE48\uCE78" : "\uCC44\uC810", "purple", ne));
+    footer.appendChild(fl);
+  } else {
+    const cc = blanks.filter((_, i) => cor(i)).length;
+    const fl = el("div", { class: "flex" });
+    fl.appendChild(el("span", { style: { fontWeight: "800" } }, [el("span", { style: { color: cc === blanks.length ? C.green : C.red, fontSize: "18px" } }, String(cc)), el("span", { style: { color: C.muted } }, ` / ${blanks.length} \uC815\uB2F5`)]));
+    fl.appendChild(btn("\uB2E4\uC74C \uBB38\uC81C", "purple", ne));
+    footer.appendChild(fl);
+  }
+  qcard.appendChild(footer);
+  wrap.appendChild(qcard);
+  return wrap;
+}
+function advanceReviewNext() {
+  const { revDeck, revIdx, revPhase, revInputs, revCb, revResults, revRound, revMode, revLocked } = S;
+  const card = revDeck[revIdx];
+  if (!card) return;
+  const parts = parseForMode(card.body, "blank");
+  const blanks = parts.filter((p) => p.type === "blank");
+  const cor = (i) => (revInputs[i] || "").trim() === (blanks[i] ? blanks[i].value : "").trim();
+  if (revPhase === "result") {
+    const cc = blanks.filter((_, i) => cor(i)).length;
+    if (revRound === 1) {
+      const q = cc === blanks.length ? 2 : 0;
+      const nextRev = getNextReview(card, q);
+      let updatedSubjects = [...S.data.subjects];
+      let updatedCards = [...S.data.cards];
+      if (nextRev.isGraduated && !card.isGraduated) {
+        const subIdx = updatedSubjects.findIndex((s) => s.id === card.subjectId);
+        if (subIdx !== -1) {
+          const subject = { ...updatedSubjects[subIdx] };
+          const chapters = [...subject.chapters || []];
+          let gradCh = chapters.find((ch) => ch.name.toLowerCase() === "graduated");
+          if (!gradCh) {
+            gradCh = { id: uid(), name: "graduated" };
+            chapters.push(gradCh);
+          }
+          subject.chapters = chapters;
+          updatedSubjects[subIdx] = subject;
+          const clonedCard = {
+            ...card,
+            id: uid(),
+            chapterId: gradCh.id,
+            reps: MAX_REPS,
+            isGraduated: true,
+            created: (/* @__PURE__ */ new Date()).toISOString(),
+            lastReview: (/* @__PURE__ */ new Date()).toISOString()
+          };
+          updatedCards.push(clonedCard);
+        }
+      }
+      updatedCards = updatedCards.map((c) => c.id === card.id ? { ...c, ...nextRev } : c);
+      persist({ ...S.data, subjects: updatedSubjects, cards: updatedCards });
+      const nl = { ...revLocked || {} };
+      blanks.forEach((_, i) => {
+        if (cor(i)) nl[i] = true;
+      });
+      const ni2 = blanks.map((b, i) => nl[i] ? b.value : "");
+      const firstUnlocked = ni2.findIndex((_, i) => !nl[i]);
+      if (firstUnlocked === -1 || cc === blanks.length) {
+        set({ revResults: [...revResults, { card, correct: cc, total: blanks.length }], revIdx: revIdx + 1, revPhase: "answering", revInputs: [], revCb: 0, revRound: 1, revLocked: {} });
+      } else {
+        set({ revPhase: "answering", revInputs: ni2, revCb: firstUnlocked, revRound: 2, revLocked: nl });
+      }
+    } else {
+      const nl2 = { ...revLocked || {} };
+      blanks.forEach((_, i) => {
+        if (cor(i)) nl2[i] = true;
+      });
+      const ni2b = blanks.map((b, i) => nl2[i] ? b.value : "");
+      const firstUnlocked = ni2b.findIndex((_, i) => !nl2[i]);
+      if (revMode === "two" || firstUnlocked === -1) {
+        set({ revResults: [...revResults, { card, correct: cc, total: blanks.length }], revIdx: revIdx + 1, revPhase: "answering", revInputs: [], revCb: 0, revRound: 1, revLocked: {} });
+      } else {
+        set({ revPhase: "answering", revInputs: ni2b, revCb: firstUnlocked, revRound: revRound + 1, revLocked: nl2 });
+      }
+    }
+    return;
+  }
+  let nextCb = revCb + 1;
+  while (nextCb < blanks.length && revLocked && revLocked[nextCb]) nextCb++;
+  if (nextCb < blanks.length) set({ revCb: nextCb });
+  else set({ revPhase: "result" });
+}
+function renderReview() {
+  const { data, revStarted, revDeck, revIdx, revPhase, revInputs, revCb, revResults, revSelSub, revSelCh, revNewCount, revRound, revMode, revLocked } = S;
+  const { subjects, cards } = data;
+  const allCh = subjects.find((s) => s.id === revSelSub)?.chapters || [];
+  if (!revStarted) {
+    const filt = (c) => {
+      if (revSelSub && c.subjectId !== revSelSub) return false;
+      if (revSelCh && c.chapterId !== revSelCh) return false;
+      return true;
+    };
+    const dueCards = cards.filter((c) => !c.isGraduated && c.nextReview && isDue(c) && filt(c));
+    const newCards = cards.filter((c) => !c.isGraduated && !c.nextReview && filt(c));
+    const todayNew = Math.min(newCards.length, S.revNewCount);
+    const futureCards = cards.filter((c) => !c.isGraduated && c.nextReview && !isDue(c) && filt(c));
+    const nextDate = futureCards.length > 0 ? futureCards.reduce((min, c) => c.nextReview < min ? c.nextReview : min, futureCards[0].nextReview) : null;
+    if (!dueCards.length && !newCards.length) {
+      const wrap2 = el("div", { style: { textAlign: "center", padding: "60px" } });
+      wrap2.appendChild(el("div", { style: { fontSize: "26px", fontWeight: "800", color: C.teal, marginBottom: "8px" } }, "\uC624\uB298 \uBCF5\uC2B5 \uC5C6\uC74C"));
+      if (nextDate) {
+        const d = new Date(nextDate);
+        wrap2.appendChild(el("div", { style: { color: C.muted, marginBottom: "6px" } }, "\uB2E4\uC74C \uBCF5\uC2B5: " + d.toLocaleDateString("ko-KR")));
+        wrap2.appendChild(el("div", { style: { fontSize: "13px", color: C.muted, marginBottom: "28px" } }, futureCards.length + "\uAC1C \uB300\uAE30 \uC911"));
+      } else {
+        wrap2.appendChild(el("div", { style: { color: C.muted, marginBottom: "28px" } }, "\uBCF5\uC2B5\uD560 \uCE74\uB4DC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4"));
+      }
+      wrap2.appendChild(btn("\uD648\uC73C\uB85C", "teal", () => set({ view: "home" })));
+      return wrap2;
+    }
+    const box = el("div", { class: "card-box" });
+    const grid = el("div", { class: "grid2", style: { marginBottom: "16px" } });
+    const subSel = el("select", { class: "inp", onChange: (e) => set({ revSelSub: e.target.value, revSelCh: null }) });
+    subSel.appendChild(el("option", { value: "" }, "\uC804\uCCB4 \uACFC\uBAA9"));
+    subjects.forEach((s) => {
+      const o = el("option", { value: s.id }, s.name);
+      if (s.id === revSelSub) o.selected = true;
+      subSel.appendChild(o);
+    });
+    const chSel = el("select", { class: "inp", onChange: (e) => set({ revSelCh: e.target.value }) });
+    chSel.appendChild(el("option", { value: "" }, "\uC804\uCCB4 \uCC55\uD130"));
+    if (revSelSub) {
+      allCh.forEach((c) => {
+        const o = el("option", { value: c.id }, c.name);
+        if (c.id === revSelCh) o.selected = true;
+        chSel.appendChild(o);
+      });
+    } else chSel.disabled = true;
+    const d1 = el("div");
+    d1.appendChild(lbl("\uACFC\uBAA9"));
+    d1.appendChild(subSel);
+    const d2 = el("div");
+    d2.appendChild(lbl("\uCC55\uD130"));
+    d2.appendChild(chSel);
+    grid.appendChild(d1);
+    grid.appendChild(d2);
+    box.appendChild(grid);
+    const nRow = el("div", { class: "flex", style: { marginBottom: "16px", alignItems: "center" } });
+    nRow.appendChild(el("span", { style: { fontSize: "13px", color: C.muted, fontWeight: "700" } }, "\uC624\uB298 \uC2E0\uADDC \uCE74\uB4DC:"));
+    const nInp = el("input", {
+      class: "inp",
+      type: "number",
+      value: String(S.revNewCount),
+      style: { width: "70px", marginBottom: "0", textAlign: "center" },
+      onInput: (e) => S.revNewCount = parseInt(e.target.value) || 10
+    });
     nRow.appendChild(nInp);
-    nRow.appendChild(el('span',{style:{fontSize:'13px',color:C.muted,fontWeight:'700'}},'개'));
+    nRow.appendChild(el("span", { style: { fontSize: "13px", color: C.muted, fontWeight: "700" } }, "\uAC1C"));
     box.appendChild(nRow);
-
-    const info=el('div',{class:'start-info'});
-    const l1=el('div',{style:{marginBottom:'4px'}});l1.textContent='복습 카드: '+dueCards.length+'개 (미이수 이월 포함)';info.appendChild(l1);
-    const l2=el('div',{});l2.textContent='신규 카드: '+todayNew+'개 (대기 '+newCards.length+'개 · 미복습 이월 없음)';info.appendChild(l2);
-    const l3=el('div',{style:{marginTop:'4px',fontSize:'12px',color:C.muted}});l3.textContent='복습 완료 후 신규 카드 출제 · 각 카드 2회 입력';info.appendChild(l3);
+    const info = el("div", { class: "start-info" });
+    const l1 = el("div", { style: { marginBottom: "4px" } });
+    l1.textContent = "\uBCF5\uC2B5 \uCE74\uB4DC: " + dueCards.length + "\uAC1C (\uBBF8\uC774\uC218 \uC774\uC6D4 \uD3EC\uD568)";
+    info.appendChild(l1);
+    const l2 = el("div", {});
+    l2.textContent = "\uC2E0\uADDC \uCE74\uB4DC: " + todayNew + "\uAC1C (\uB300\uAE30 " + newCards.length + "\uAC1C \xB7 \uBBF8\uBCF5\uC2B5 \uC774\uC6D4 \uC5C6\uC74C)";
+    info.appendChild(l2);
+    const l3 = el("div", { style: { marginTop: "4px", fontSize: "12px", color: C.muted } });
+    l3.textContent = "\uBCF5\uC2B5 \uC644\uB8CC \uD6C4 \uC2E0\uADDC \uCE74\uB4DC \uCD9C\uC81C \xB7 \uAC01 \uCE74\uB4DC 2\uD68C \uC785\uB825";
+    info.appendChild(l3);
     box.appendChild(info);
-
-    // 기존 학습 중 SM-2가 돌아간 카드가 있을 때 안내
-    const legacyCards=cards.filter(c=>c.nextReview&&!isDue(c)&&filt(c));
-    if(legacyCards.length>0&&!newCards.length&&!dueCards.length){
-      const legacyBox=el('div',{style:{padding:'10px 14px',background:'rgba(249,224,122,.2)',border:'1px dashed #f9e07a',borderRadius:'10px',marginBottom:'12px',fontSize:'12px',color:C.muted,fontWeight:'700'}});
-      legacyBox.textContent=legacyCards.length+'개 카드가 미래 복습 일정으로 잡혀 있습니다. (이전 학습 모드에서 SM-2가 적용됨)';
-      const resetBtn=btn('복습 일정 초기화 (신규로 되돌리기)','small',()=>{
-        const updated={...S.data,cards:S.data.cards.map(c=>{
-          if(!filt(c))return c;
-          const{nextReview,lastReview,interval,ease,reps,...rest}=c;
-          return rest;
-        })};
+    const legacyCards = cards.filter((c) => c.nextReview && !isDue(c) && filt(c));
+    if (legacyCards.length > 0 && !newCards.length && !dueCards.length) {
+      const legacyBox = el("div", { style: { padding: "10px 14px", background: "rgba(249,224,122,.2)", border: "1px dashed #f9e07a", borderRadius: "10px", marginBottom: "12px", fontSize: "12px", color: C.muted, fontWeight: "700" } });
+      legacyBox.textContent = legacyCards.length + "\uAC1C \uCE74\uB4DC\uAC00 \uBBF8\uB798 \uBCF5\uC2B5 \uC77C\uC815\uC73C\uB85C \uC7A1\uD600 \uC788\uC2B5\uB2C8\uB2E4. (\uC774\uC804 \uD559\uC2B5 \uBAA8\uB4DC\uC5D0\uC11C SM-2\uAC00 \uC801\uC6A9\uB428)";
+      const resetBtn = btn("\uBCF5\uC2B5 \uC77C\uC815 \uCD08\uAE30\uD654 (\uC2E0\uADDC\uB85C \uB418\uB3CC\uB9AC\uAE30)", "small", () => {
+        const updated = {
+          ...S.data,
+          cards: S.data.cards.map((c) => {
+            if (!filt(c)) return c;
+            const { nextReview, lastReview, interval, ease, reps, ...rest } = c;
+            return rest;
+          })
+        };
         persist(updated);
       });
-      resetBtn.style.marginTop='8px';resetBtn.style.display='block';
+      resetBtn.style.marginTop = "8px";
+      resetBtn.style.display = "block";
       legacyBox.appendChild(resetBtn);
       box.appendChild(legacyBox);
     }
-    // 모드 선택
-    const modeRow=el('div',{class:'flex',style:{marginBottom:'16px',gap:'10px'}});
-    const modeLabel=el('span',{style:{fontSize:'13px',color:C.muted,fontWeight:'700'}});modeLabel.textContent='반복 모드:';modeRow.appendChild(modeLabel);
-    const modeTwo=el('button',{style:{padding:'5px 16px',borderRadius:'20px',border:'2px solid #3aafa9',fontSize:'12px',fontWeight:'700',cursor:'pointer',background:S.revMode==='two'?'#3aafa9':'none',color:S.revMode==='two'?'#fff':'#3aafa9'}});
-    modeTwo.textContent='2회';modeTwo.addEventListener('click',function(){S.revMode='two';modeTwo.style.background='#3aafa9';modeTwo.style.color='#fff';modeRepeat.style.background='none';modeRepeat.style.color='#3aafa9';});
-    const modeRepeat=el('button',{style:{padding:'5px 16px',borderRadius:'20px',border:'2px solid #3aafa9',fontSize:'12px',fontWeight:'700',cursor:'pointer',background:S.revMode==='repeat'?'#3aafa9':'none',color:S.revMode==='repeat'?'#fff':'#3aafa9'}});
-    modeRepeat.textContent='맞출때까지';modeRepeat.addEventListener('click',function(){S.revMode='repeat';modeRepeat.style.background='#3aafa9';modeRepeat.style.color='#fff';modeTwo.style.background='none';modeTwo.style.color='#3aafa9';});
-    modeRow.appendChild(modeTwo);modeRow.appendChild(modeRepeat);box.appendChild(modeRow);
-    box.appendChild(btn('복습 시작','teal',()=>{
-      if(!dueCards.length&&!todayNew){alert('복습할 카드가 없습니다.');return;}
-      // 과목→챕터→정렬순
-      function sortCards(arr){
-        return arr.slice().sort(function(a,b){
-          const si=subjects.findIndex(function(s){return s.id===a.subjectId;});
-          const si2=subjects.findIndex(function(s){return s.id===b.subjectId;});
-          if(si!==si2)return si-si2;
-          const s=subjects[Math.max(0,si)]||{chapters:[]};
-          const ci=(s.chapters||[]).findIndex(function(c){return c.id===a.chapterId;});
-          const ci2=(s.chapters||[]).findIndex(function(c){return c.id===b.chapterId;});
-          if(ci!==ci2)return ci-ci2;
-          // 카드 목록 정렬 기준 적용
-          if(S.cardSort==='title')return a.title.localeCompare(b.title,'ko',{numeric:true,sensitivity:'base'});
-          return new Date(a.created||0)-new Date(b.created||0);
+    const modeRow = el("div", { class: "flex", style: { marginBottom: "16px", gap: "10px" } });
+    const modeLabel = el("span", { style: { fontSize: "13px", color: C.muted, fontWeight: "700" } });
+    modeLabel.textContent = "\uBC18\uBCF5 \uBAA8\uB4DC:";
+    modeRow.appendChild(modeLabel);
+    const modeTwo = el("button", { style: { padding: "5px 16px", borderRadius: "20px", border: "2px solid #3aafa9", fontSize: "12px", fontWeight: "700", cursor: "pointer", background: S.revMode === "two" ? "#3aafa9" : "none", color: S.revMode === "two" ? "#fff" : "#3aafa9" } });
+    modeTwo.textContent = "2\uD68C";
+    modeTwo.addEventListener("click", function() {
+      S.revMode = "two";
+      modeTwo.style.background = "#3aafa9";
+      modeTwo.style.color = "#fff";
+      modeRepeat.style.background = "none";
+      modeRepeat.style.color = "#3aafa9";
+    });
+    const modeRepeat = el("button", { style: { padding: "5px 16px", borderRadius: "20px", border: "2px solid #3aafa9", fontSize: "12px", fontWeight: "700", cursor: "pointer", background: S.revMode === "repeat" ? "#3aafa9" : "none", color: S.revMode === "repeat" ? "#fff" : "#3aafa9" } });
+    modeRepeat.textContent = "\uB9DE\uCD9C\uB54C\uAE4C\uC9C0";
+    modeRepeat.addEventListener("click", function() {
+      S.revMode = "repeat";
+      modeRepeat.style.background = "#3aafa9";
+      modeRepeat.style.color = "#fff";
+      modeTwo.style.background = "none";
+      modeTwo.style.color = "#3aafa9";
+    });
+    modeRow.appendChild(modeTwo);
+    modeRow.appendChild(modeRepeat);
+    box.appendChild(modeRow);
+    box.appendChild(btn("\uBCF5\uC2B5 \uC2DC\uC791", "teal", () => {
+      if (!dueCards.length && !todayNew) {
+        alert("\uBCF5\uC2B5\uD560 \uCE74\uB4DC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
+        return;
+      }
+      function sortCards(arr) {
+        return arr.slice().sort(function(a, b) {
+          const si = subjects.findIndex(function(s2) {
+            return s2.id === a.subjectId;
+          });
+          const si2 = subjects.findIndex(function(s2) {
+            return s2.id === b.subjectId;
+          });
+          if (si !== si2) return si - si2;
+          const s = subjects[Math.max(0, si)] || { chapters: [] };
+          const ci = (s.chapters || []).findIndex(function(c) {
+            return c.id === a.chapterId;
+          });
+          const ci2 = (s.chapters || []).findIndex(function(c) {
+            return c.id === b.chapterId;
+          });
+          if (ci !== ci2) return ci - ci2;
+          if (S.cardSort === "title") return a.title.localeCompare(b.title, "ko", { numeric: true, sensitivity: "base" });
+          return new Date(a.created || 0).getTime() - new Date(b.created || 0).getTime();
         });
       }
-      const deck=[...sortCards(dueCards),...sortCards(newCards).slice(0,S.revNewCount)];
-      set({revStarted:true,revDeck:deck,revIdx:0,revPhase:'answering',revInputs:[],revCb:0,revResults:[],revRound:1,revMode:S.revMode,revLocked:{}});
+      const deck = [...sortCards(dueCards), ...sortCards(newCards).slice(0, S.revNewCount)];
+      set({ revStarted: true, revDeck: deck, revIdx: 0, revPhase: "answering", revInputs: [], revCb: 0, revResults: [], revRound: 1, revMode: S.revMode, revLocked: {} });
     }));
-    return el('div',{class:'fade'},[sectionEl('오늘의 복습',[box])]);
+    return el("div", { class: "fade" }, [sectionEl("\uC624\uB298\uC758 \uBCF5\uC2B5", [box])]);
   }
-
-  // 완료
-  if(revIdx>=revDeck.length){
-    const total=revResults.reduce((s,r)=>s+r.total,0),correct=revResults.reduce((s,r)=>s+r.correct,0),pct=total>0?Math.round(correct/total*100):0;
-    const wrong=revResults.filter(r=>r.correct<r.total);
-    const wrap=el('div',{});
-    const center=el('div',{style:{textAlign:'center',marginBottom:'24px'}});
-    center.appendChild(el('div',{style:{fontSize:'32px',fontWeight:'800',color:C.teal,marginBottom:'8px'}},'오늘 복습 완료!'));
-    center.appendChild(el('div',{class:'score-big',style:{color:pct>=80?C.green:pct>=60?C.yellow:C.red}},pct+'점'));
-    center.appendChild(el('div',{style:{color:C.muted,fontSize:'14px'}},correct+'/'+total+' 정답 · '+revDeck.length+'카드'));
-    wrap.appendChild(center);
-    if(wrong.length){
-      const wt=el('div',{style:{fontSize:'13px',fontWeight:'800',color:C.red,marginBottom:'10px'}});wt.textContent='오답 카드 ('+wrong.length+'개)';wrap.appendChild(wt);
-      wrong.forEach(r=>{const wc=el('div',{class:'wrong-card'});const wt2=el('div',{style:{fontWeight:'700',fontSize:'13px',marginBottom:'4px'}});wt2.textContent=r.card.title;wc.appendChild(wt2);const ws=el('div',{style:{fontSize:'12px',color:C.muted}});ws.textContent=r.correct+'/'+r.total+' 정답';wc.appendChild(ws);wrap.appendChild(wc);});
-    }
-    const btns=el('div',{class:'flex',style:{justifyContent:'center',marginTop:'16px'}});
-    btns.appendChild(btn('홈으로','teal',()=>set({view:'home',revStarted:false})));
-    wrap.appendChild(btns);
-    wrap.appendChild(el('div',{class:'info-box'},'망각곡선 복습 주기: 1→3→7→14→30→60→120일'));
-    return wrap;
+  if (revIdx >= revDeck.length) {
+    const wrap2 = el("div", {});
+    const center = el("div", { style: { textAlign: "center", marginBottom: "24px" } });
+    center.appendChild(el("div", { style: { fontSize: "32px", fontWeight: "800", color: C.teal, marginBottom: "8px" } }, "\uC624\uB298 \uBCF5\uC2B5 \uC644\uB8CC!"));
+    center.appendChild(el("div", { style: { color: C.muted, fontSize: "14px" } }, revDeck.length + "\uAC1C \uCE74\uB4DC\uB97C \uBAA8\uB450 \uBCF5\uC2B5\uD588\uC2B5\uB2C8\uB2E4."));
+    wrap2.appendChild(center);
+    const btns = el("div", { class: "flex", style: { justifyContent: "center", marginTop: "16px" } });
+    btns.appendChild(btn("\uD648\uC73C\uB85C", "teal", () => set({ view: "home", revStarted: false })));
+    wrap2.appendChild(btns);
+    return wrap2;
   }
-
-  // 진행 중
-  const card=revDeck[revIdx];
-  const isNewCard=!card.nextReview; // 신규 카드 여부 (시작 시점 기준)
-  const parts=parseForMode(card.body,'blank');
-  const blanks=parts.filter(p=>p.type==='blank');
-  const sn=getSN(subjects,card),cn=getCN(subjects,card);
-  const isRound2=revRound===2;
-
-  const hi=val=>{const n=[...revInputs];n[revCb]=val;S.revInputs=n;};
-  const cor=i=>(revInputs[i]||'').trim()===(blanks[i]?blanks[i].value:'').trim();
-  const ne=()=>{
-    if(revPhase==='result'){
-      const cc=blanks.filter((_,i)=>cor(i)).length;const cc2=cc;
-      if(revRound===1){
-        // 1회차: SM-2 업데이트 (공통)
-        const q=cc===blanks.length?2:cc>0?1:0;
-        persist({...S.data,cards:S.data.cards.map(c=>c.id===card.id?{...c,...getNextReview(c,q)}:c)});
-        if(revMode==='two'){
-          // 2회 모드: 2회차로
-          set({revPhase:'answering',revInputs:[],revCb:0,revRound:2});
-        } else {
-          // 반복 모드: 전부 맞으면 다음, 아니면 다시
-          if(cc===blanks.length){
-            set({revResults:[...revResults,{card,correct:cc,total:blanks.length}],revIdx:revIdx+1,revPhase:'answering',revInputs:[],revCb:0,revRound:1,revLocked:{}});
-          } else {
-            const nl={};blanks.forEach(function(_,i){if(cor(i))nl[i]=true;});
-            const ni2=blanks.map(function(b,i){return nl[i]?b.value:'';});
-            set({revPhase:'answering',revInputs:ni2,revCb:0,revRound:2,revLocked:nl});
-          }
-        }
-      } else {
-        // 2회차 이후
-        if(revMode==='two'||cc===blanks.length){
-          // 2회 모드이거나 전부 맞으면 다음 카드
-          set({revResults:[...revResults,{card,correct:cc,total:blanks.length}],revIdx:revIdx+1,revPhase:'answering',revInputs:[],revCb:0,revRound:1,revLocked:{}});
-        } else {
-          // 반복 모드 + 오답: 맞춘 것 locked 처리 후 반복
-          const nl2={};blanks.forEach(function(_,i){if(cor(i))nl2[i]=true;});
-          const ni2b=blanks.map(function(b,i){return nl2[i]?b.value:(revInputs[i]||'');});
-          set({revPhase:'answering',revInputs:ni2b,revCb:0,revRound:revRound+1,revLocked:nl2});
-        }
-      }
-      return;
-    }
-    if(revCb<blanks.length-1)set({revCb:revCb+1});else set({revPhase:'result'});
+  const card = revDeck[revIdx];
+  const parts = parseForMode(card.body, "blank");
+  const blanks = parts.filter((p) => p.type === "blank");
+  const sn = getSN(subjects, card), cn = getCN(subjects, card);
+  const isRound2 = revRound === 2;
+  const hi = (val) => {
+    const n = [...revInputs];
+    n[revCb] = val;
+    S.revInputs = n;
   };
-
-  const ref={el:null};const bodyEl=renderQuizBody(parts,revPhase,revInputs,revCb,revLocked,ref,hi,ne);
-  setTimeout(()=>ref.el&&ref.el.focus(),80);
-
-  // 복습/신규 구분선 위치 (revDeck에서 신규 시작 인덱스)
-  const dueCount=revDeck.filter(c=>c.nextReview).length;
-  const sectionLabel=revIdx<dueCount?'복습':'신규';
-  const sectionColor=revIdx<dueCount?C.teal:C.accent;
-
-  const wrap=el('div',{class:'fade'});
-  const pb=el('div',{class:'flex',style:{marginBottom:'6px'}});
-  pb.appendChild(el('span',{style:{fontSize:'12px',color:C.muted,fontWeight:'700'}},sn+' · '+cn));
-  const bar=el('div',{class:'progress-bar'});bar.appendChild(el('div',{class:'progress-fill',style:{width:((revIdx/revDeck.length)*100)+'%',background:sectionColor}}));pb.appendChild(bar);
-  pb.appendChild(el('span',{style:{fontSize:'12px',color:sectionColor,fontWeight:'700'}},(revIdx+1)+'/'+revDeck.length));
+  const cor = (i) => (revInputs[i] || "").trim() === (blanks[i] ? blanks[i].value : "").trim();
+  const ne = advanceReviewNext;
+  const ref = { el: null };
+  const bodyEl = renderQuizBody(parts, revPhase, revInputs, revCb, revLocked, ref, hi, ne);
+  setTimeout(() => ref.el && ref.el.focus(), 80);
+  const dueCount = revDeck.filter((c) => c.nextReview).length;
+  const sectionLabel = revIdx < dueCount ? "\uBCF5\uC2B5" : "\uC2E0\uADDC";
+  const sectionColor = revIdx < dueCount ? C.teal : C.accent;
+  const wrap = el("div", { class: "fade" });
+  const pb = el("div", { class: "flex", style: { marginBottom: "6px" } });
+  pb.appendChild(el("span", { style: { fontSize: "12px", color: C.muted, fontWeight: "700" } }, sn + " \xB7 " + cn));
+  const bar = el("div", { class: "progress-bar" });
+  bar.appendChild(el("div", { class: "progress-fill", style: { width: revIdx / revDeck.length * 100 + "%", background: sectionColor } }));
+  pb.appendChild(bar);
+  pb.appendChild(el("span", { style: { fontSize: "12px", color: sectionColor, fontWeight: "700" } }, revIdx + 1 + "/" + revDeck.length));
   wrap.appendChild(pb);
-
-  const badge=el('div',{style:{fontSize:'11px',fontWeight:'800',marginBottom:'6px'}});
-  badge.style.color=isRound2?C.purple:sectionColor;
-  const roundLabel=revRound===1?'1회차':(revMode==='repeat'?revRound+'회차':'2회차 (즉시 복습)');
-  badge.textContent=(sectionLabel==='신규'?'🆕 신규':'📚 복습')+' · '+roundLabel;
+  const badge = el("div", { style: { fontSize: "11px", fontWeight: "800", marginBottom: "6px" } });
+  badge.style.color = isRound2 ? C.purple : sectionColor;
+  const roundLabel = revRound === 1 ? "1\uD68C\uCC28" : revMode === "repeat" ? revRound + "\uD68C\uCC28" : "2\uD68C\uCC28 (\uC989\uC2DC \uBCF5\uC2B5)";
+  badge.textContent = (sectionLabel === "\uC2E0\uADDC" ? "\u{1F195} \uC2E0\uADDC" : "\u{1F4DA} \uBCF5\uC2B5") + " \xB7 " + roundLabel;
   wrap.appendChild(badge);
-
-  const qcard=el('div',{class:'quiz-card tb'});
-  const tr=el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'10px',flexWrap:'wrap',gap:'8px'}});
-  tr.appendChild(el('div',{style:{fontWeight:'800',fontSize:'20px',color:C.text}},card.title));
-  tr.appendChild(el('span',{class:'tag-sm'},sn+' · '+cn));
+  const qcard = el("div", { class: "quiz-card tb" });
+  const tr = el("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px", flexWrap: "wrap", gap: "8px" } });
+  tr.appendChild(el("div", { style: { fontWeight: "800", fontSize: "20px", color: C.text } }, card.title));
+  tr.appendChild(el("span", { class: "tag-sm" }, sn + " \xB7 " + cn));
   qcard.appendChild(tr);
-  if(card.hint)qcard.appendChild(el('div',{class:'hint-box'},'힌트: '+card.hint));
+  if (card.hint) qcard.appendChild(el("div", { class: "hint-box" }, "\uD78C\uD2B8: " + card.hint));
   qcard.appendChild(bodyEl);
-
-  const footer=el('div',{style:{paddingTop:'12px',borderTop:'1px dashed #f0c8a0'}});
-  if(revPhase==='answering'){
-    const fl=el('div',{class:'flex'});
-    fl.appendChild(el('span',{style:{fontSize:'13px',color:C.muted,fontWeight:'700'}},'빈칸 '+(revCb+1)+'/'+blanks.length));
-    fl.appendChild(btn(revCb<blanks.length-1?'다음 빈칸':'채점','teal',ne));
+  const footer = el("div", { style: { paddingTop: "12px", borderTop: "1px dashed #f0c8a0" } });
+  if (revPhase === "answering") {
+    const fl = el("div", { class: "flex" });
+    const unlockedTotal = blanks.filter(function(_, i) {
+      return !revLocked[i];
+    }).length;
+    let hasNextUnlocked = false;
+    for (let ni = revCb + 1; ni < blanks.length; ni++) {
+      if (!revLocked[ni]) {
+        hasNextUnlocked = true;
+        break;
+      }
+    }
+    const unlockedPos = blanks.slice(0, revCb + 1).filter(function(_, i) {
+      return !revLocked[i];
+    }).length;
+    fl.appendChild(el("span", { style: { fontSize: "13px", color: C.muted, fontWeight: "700" } }, "\uBE48\uCE78 " + unlockedPos + "/" + unlockedTotal));
+    fl.appendChild(btn(hasNextUnlocked ? "\uB2E4\uC74C \uBE48\uCE78" : "\uCC44\uC810", "teal", ne));
     footer.appendChild(fl);
   } else {
-    const cc=blanks.filter((_,i)=>cor(i)).length;const cc2=cc;
-    const fl=el('div',{class:'flex'});
-    fl.appendChild(el('span',{style:{fontWeight:'800'}},[el('span',{style:{color:cc===blanks.length?C.green:C.red,fontSize:'18px'}},String(cc)),el('span',{style:{color:C.muted}},' / '+blanks.length+' 정답')]));
-    if(!isRound2)fl.appendChild(el('span',{style:{fontSize:'12px',color:C.muted,fontWeight:'700'}},'다음 복습: '+(card.interval||1)+'일 후'));
-    const nextBtnLabel=revRound===1?(revMode==='two'?'2회차 시작':'즉시 복습'):(revMode==='two'||cc2===blanks.length)?'다음 카드':'다시 풀기';
-    const nextBtnCls=revRound===1?'purple':(revMode==='two'||cc2===blanks.length)?'teal':'red';
-    fl.appendChild(btn(nextBtnLabel,nextBtnCls,ne));
+    const cc = blanks.filter((_, i) => cor(i)).length;
+    const cc2 = cc;
+    const fl = el("div", { class: "flex" });
+    fl.appendChild(el("span", { style: { fontWeight: "800" } }, [el("span", { style: { color: cc === blanks.length ? C.green : C.red, fontSize: "18px" } }, String(cc)), el("span", { style: { color: C.muted } }, " / " + blanks.length + " \uC815\uB2F5")]));
+    if (revRound === 1) {
+      const q2 = cc === blanks.length ? 2 : 0;
+      const nextRev = getNextReview(card, q2);
+      const msg = nextRev.isGraduated ? "\u{1F389} \uC878\uC5C5 (graduated)!" : "\uB2E4\uC74C \uBCF5\uC2B5: " + nextRev.interval + "\uC77C \uD6C4";
+      fl.appendChild(el("span", { style: { fontSize: "12px", color: nextRev.isGraduated ? C.green : C.muted, fontWeight: "700" } }, msg));
+    }
+    const isAllCorrect = cc === blanks.length;
+    let nextBtnLabel = "\uB2E4\uC74C \uCE74\uB4DC";
+    let nextBtnCls = "teal";
+    if (revRound === 1) {
+      if (!isAllCorrect) {
+        nextBtnLabel = revMode === "two" ? "2\uD68C\uCC28 \uC2DC\uC791" : "\uC989\uC2DC \uBCF5\uC2B5";
+        nextBtnCls = "purple";
+      }
+    } else {
+      if (revMode === "repeat" && !isAllCorrect) {
+        nextBtnLabel = "\uB2E4\uC2DC \uD480\uAE30";
+        nextBtnCls = "red";
+      }
+    }
+    fl.appendChild(btn(nextBtnLabel, nextBtnCls, ne));
     footer.appendChild(fl);
   }
-  qcard.appendChild(footer);wrap.appendChild(qcard);return wrap;
+  qcard.appendChild(footer);
+  wrap.appendChild(qcard);
+  return wrap;
 }
-
-function renderCards(){
-  const{data,cardFs,cardFc,cardQ,cardSort,cardEdit,cardExpanded}=S;const{subjects,cards}=data;
-  const chapters=getChapters(subjects,cardFs);
-  let filtered=cards.filter(c=>{if(cardFs&&c.subjectId!==cardFs)return false;if(cardFc&&c.chapterId!==cardFc)return false;if(cardQ){const q=cardQ.toLowerCase();return c.title.toLowerCase().includes(q)||c.body.toLowerCase().includes(q);}return true;});
-  // 정렬
-  if(cardSort==='chapter'){
-    filtered=filtered.slice().sort(function(a,b){
-      const si=subjects.findIndex(function(s){return s.id===a.subjectId;});
-      const si2=subjects.findIndex(function(s){return s.id===b.subjectId;});
-      if(si!==si2)return si-si2;
-      const s=subjects[Math.max(0,si)]||{chapters:[]};
-      const ci=(s.chapters||[]).findIndex(function(c){return c.id===a.chapterId;});
-      const ci2=(s.chapters||[]).findIndex(function(c){return c.id===b.chapterId;});
-      if(ci!==ci2)return ci-ci2;
-      return new Date(a.created||0)-new Date(b.created||0);
+function renderCards() {
+  const { data, cardFs, cardFc, cardQ, cardSort, cardEdit, cardExpanded } = S;
+  const { subjects, cards } = data;
+  const chapters = getChapters(subjects, cardFs);
+  let filtered = cards.filter((c) => {
+    if (cardFs && c.subjectId !== cardFs) return false;
+    if (cardFc && c.chapterId !== cardFc) return false;
+    if (cardQ) {
+      const q = cardQ.toLowerCase();
+      return c.title.toLowerCase().includes(q) || c.body.toLowerCase().includes(q);
+    }
+    return true;
+  });
+  if (cardSort === "chapter") {
+    filtered = filtered.slice().sort(function(a, b) {
+      const si = subjects.findIndex(function(s2) {
+        return s2.id === a.subjectId;
+      });
+      const si2 = subjects.findIndex(function(s2) {
+        return s2.id === b.subjectId;
+      });
+      if (si !== si2) return si - si2;
+      const s = subjects[Math.max(0, si)] || { chapters: [] };
+      const ci = (s.chapters || []).findIndex(function(c) {
+        return c.id === a.chapterId;
+      });
+      const ci2 = (s.chapters || []).findIndex(function(c) {
+        return c.id === b.chapterId;
+      });
+      if (ci !== ci2) return ci - ci2;
+      return new Date(a.created || 0).getTime() - new Date(b.created || 0).getTime();
     });
-  } else if(cardSort==='created'){
-    filtered=filtered.slice().sort(function(a,b){return new Date(a.created||0)-new Date(b.created||0);});
-  } else if(cardSort==='title'){
-    filtered=filtered.slice().sort(function(a,b){return a.title.localeCompare(b.title,'ko',{numeric:true,sensitivity:'base'});});
+  } else if (cardSort === "created") {
+    filtered = filtered.slice().sort(function(a, b) {
+      return new Date(a.created || 0).getTime() - new Date(b.created || 0).getTime();
+    });
+  } else if (cardSort === "title") {
+    filtered = filtered.slice().sort(function(a, b) {
+      return a.title.localeCompare(b.title, "ko", { numeric: true, sensitivity: "base" });
+    });
   }
-  const getSN2=c=>getSN(subjects,c);const getCN2=c=>getCN(subjects,c);
-  const wrap=el('div',{class:'fade'});
-  if(cardEdit)wrap.appendChild(renderEditModal(cardEdit,subjects,cards));
-  const filterGrid=el('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:'8px',marginBottom:'16px',alignItems:'end'}});
-  const subSel=el('select',{class:'inp',style:{marginBottom:'0'},onChange:e=>set({cardFs:e.target.value,cardFc:''})});subSel.appendChild(el('option',{value:''},'전체'));subjects.forEach(s=>{const o=el('option',{value:s.id},s.name);if(s.id===cardFs)o.selected=true;subSel.appendChild(o);});
-  const chSel=el('select',{class:'inp',style:{marginBottom:'0'},onChange:e=>set({cardFc:e.target.value})});chSel.appendChild(el('option',{value:''},'전체'));if(cardFs){chapters.forEach(c=>{const o=el('option',{value:c.id},c.name);if(c.id===cardFc)o.selected=true;chSel.appendChild(o);});}else chSel.disabled=true;
-  const searchInp=el('input',{class:'inp',style:{marginBottom:'0'},placeholder:'검색...',value:cardQ,onInput:e=>set({cardQ:e.target.value})});
-  const sortSel=el('select',{class:'inp',style:{marginBottom:'0'},onChange:e=>set({cardSort:e.target.value})});
-  [{v:'chapter',l:'챕터순'},{v:'created',l:'생성일순'},{v:'title',l:'제목순'}].forEach(function(o){const opt=el('option',{value:o.v});opt.textContent=o.l;if(o.v===cardSort)opt.selected=true;sortSel.appendChild(opt);});
-  const d1=el('div');d1.appendChild(lbl('과목'));d1.appendChild(subSel);const d2=el('div');d2.appendChild(lbl('챕터'));d2.appendChild(chSel);const d3=el('div');d3.appendChild(lbl('검색'));d3.appendChild(searchInp);const d4=el('div');d4.appendChild(lbl('정렬'));d4.appendChild(sortSel);
-  filterGrid.appendChild(d1);filterGrid.appendChild(d2);filterGrid.appendChild(d3);filterGrid.appendChild(d4);
-  const sec=sectionEl(`카드 목록 (${filtered.length}개)`,[filterGrid]);
-  if(!filtered.length)sec.appendChild(el('div',{class:'empty'},'카드가 없습니다'));
-  filtered.forEach(card=>{
-    const parts=parseBody(card.body);const bc=parts.filter(p=>p.type==='blank').length;const cc=parts.filter(p=>p.type==='cho').length;const isExp=cardExpanded===card.id;const due=isDue(card);
-    const cardEl=el('div',{style:{border:`2px solid ${isExp?C.accent:C.border}`,borderRadius:'14px',marginBottom:'10px',overflow:'hidden',boxShadow:'0 2px 8px rgba(0,0,0,.05)'}});
-    const hdr=el('div',{style:{display:'flex',alignItems:'center',padding:'11px 16px',background:isExp?'rgba(224,123,106,.06)':'#fff8f0',gap:'10px',flexWrap:'wrap'}});
-    const info=el('div',{style:{cursor:'pointer',flex:'1',minWidth:'0'},onClick:()=>set({cardExpanded:isExp?null:card.id})});
-    info.appendChild(el('div',{style:{fontWeight:'800',fontSize:'14px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},card.title));
-    const sub2=el('div',{style:{fontSize:'11px',color:C.muted,marginTop:'3px',fontWeight:'700'}},`${getSN2(card)} · ${getCN2(card)} · 빈칸 ${bc}${cc>0?' · 초성 '+cc:''}`);if(due)sub2.appendChild(el('span',{class:'due-tag'},'복습 대기'));info.appendChild(sub2);
-    hdr.appendChild(info);hdr.appendChild(btn('수정','small',()=>set({cardEdit:card})));hdr.appendChild(el('button',{style:{background:'none',border:'none',color:C.red,cursor:'pointer',fontSize:'15px',padding:'2px 6px'},onClick:()=>showConfirm(`'${card.title}' 카드를 삭제할까요?`,()=>persist({subjects,cards:cards.filter(x=>x.id!==card.id)}))},'X'));hdr.appendChild(el('span',{style:{color:C.muted,cursor:'pointer',fontSize:'13px'},onClick:()=>set({cardExpanded:isExp?null:card.id})},isExp?'▲':'▼'));cardEl.appendChild(hdr);
-    if(isExp){
-      const body=el('div',{style:{padding:'16px 18px',background:C.bg}});
-      if(card.hint)body.appendChild(el('div',{class:'hint-box'},`힌트: ${card.hint}`));
-      const bt=el('div',{style:{lineHeight:'2.2',fontSize:'14px'}});
-      parts.forEach(p=>{
-        if(p.type==='blank')bt.appendChild(el('span',{style:{display:'inline-block',background:'rgba(224,123,106,.2)',border:'2px solid #e07b6a',borderRadius:'6px',padding:'0 8px',color:'#e07b6a',fontWeight:'800',margin:'0 3px'}},p.value));
-        else if(p.type==='cho')bt.appendChild(el('span',{style:{display:'inline-block',background:'rgba(58,175,169,.12)',border:'2px dashed #3aafa9',borderRadius:'6px',padding:'0 8px',color:'#3aafa9',fontWeight:'800',margin:'0 3px'}},p.value+'('+toChosung(p.value)+')'));
+  const getSN2 = (c) => getSN(subjects, c);
+  const getCN2 = (c) => getCN(subjects, c);
+  const wrap = el("div", { class: "fade" });
+  if (cardEdit) wrap.appendChild(renderEditModal(cardEdit, subjects, cards));
+  const filterGrid = el("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "8px", marginBottom: "16px", alignItems: "end" } });
+  const subSel = el("select", { class: "inp", style: { marginBottom: "0" }, onChange: (e) => set({ cardFs: e.target.value, cardFc: "" }) });
+  subSel.appendChild(el("option", { value: "" }, "\uC804\uCCB4"));
+  subjects.forEach((s) => {
+    const o = el("option", { value: s.id }, s.name);
+    if (s.id === cardFs) o.selected = true;
+    subSel.appendChild(o);
+  });
+  const chSel = el("select", { class: "inp", style: { marginBottom: "0" }, onChange: (e) => set({ cardFc: e.target.value }) });
+  chSel.appendChild(el("option", { value: "" }, "\uC804\uCCB4"));
+  if (cardFs) {
+    chapters.forEach((c) => {
+      const o = el("option", { value: c.id }, c.name);
+      if (c.id === cardFc) o.selected = true;
+      chSel.appendChild(o);
+    });
+  } else chSel.disabled = true;
+  const searchInp = el("input", { class: "inp", style: { marginBottom: "0" }, placeholder: "\uAC80\uC0C9...", value: cardQ, onInput: (e) => set({ cardQ: e.target.value }) });
+  const sortSel = el("select", { class: "inp", style: { marginBottom: "0" }, onChange: (e) => set({ cardSort: e.target.value }) });
+  [{ v: "chapter", l: "\uCC55\uD130\uC21C" }, { v: "created", l: "\uC0DD\uC131\uC77C\uC21C" }, { v: "title", l: "\uC81C\uBAA9\uC21C" }].forEach(function(o) {
+    const opt = el("option", { value: o.v });
+    opt.textContent = o.l;
+    if (o.v === cardSort) opt.selected = true;
+    sortSel.appendChild(opt);
+  });
+  const d1 = el("div");
+  d1.appendChild(lbl("\uACFC\uBAA9"));
+  d1.appendChild(subSel);
+  const d2 = el("div");
+  d2.appendChild(lbl("\uCC55\uD130"));
+  d2.appendChild(chSel);
+  const d3 = el("div");
+  d3.appendChild(lbl("\uAC80\uC0C9"));
+  d3.appendChild(searchInp);
+  const d4 = el("div");
+  d4.appendChild(lbl("\uC815\uB82C"));
+  d4.appendChild(sortSel);
+  filterGrid.appendChild(d1);
+  filterGrid.appendChild(d2);
+  filterGrid.appendChild(d3);
+  filterGrid.appendChild(d4);
+  const sec = sectionEl(`\uCE74\uB4DC \uBAA9\uB85D (${filtered.length}\uAC1C)`, [filterGrid]);
+  if (!filtered.length) sec.appendChild(el("div", { class: "empty" }, "\uCE74\uB4DC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4"));
+  filtered.forEach((card) => {
+    const parts = parseBody(card.body);
+    const bc = parts.filter((p) => p.type === "blank").length;
+    const cc = parts.filter((p) => p.type === "cho").length;
+    const isExp = cardExpanded === card.id;
+    const due = isDue(card);
+    const cardEl = el("div", { style: { border: `2px solid ${isExp ? C.accent : C.border}`, borderRadius: "14px", marginBottom: "10px", overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,.05)" } });
+    const hdr = el("div", { style: { display: "flex", alignItems: "center", padding: "11px 16px", background: isExp ? "rgba(224,123,106,.06)" : "#fff8f0", gap: "10px", flexWrap: "wrap" } });
+    const info = el("div", { style: { cursor: "pointer", flex: "1", minWidth: "0" }, onClick: () => set({ cardExpanded: isExp ? null : card.id }) });
+    info.appendChild(el("div", { style: { fontWeight: "800", fontSize: "14px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, card.title));
+    const sub2 = el("div", { style: { fontSize: "11px", color: C.muted, marginTop: "3px", fontWeight: "700" } }, `${getSN2(card)} \xB7 ${getCN2(card)} \xB7 \uBE48\uCE78 ${bc}${cc > 0 ? " \xB7 \uCD08\uC131 " + cc : ""}`);
+    if (card.isGraduated) {
+      sub2.appendChild(el("span", { class: "due-tag", style: { background: "#d4ecc0", color: "#2b580c" } }, "\u{1F393} graduated"));
+    } else if (due) {
+      sub2.appendChild(el("span", { class: "due-tag" }, "\uBCF5\uC2B5 \uB300\uAE30"));
+    }
+    info.appendChild(sub2);
+    hdr.appendChild(info);
+    hdr.appendChild(btn("\uC218\uC815", "small", () => set({ cardEdit: card })));
+    hdr.appendChild(el("button", { style: { background: "none", border: "none", color: C.red, cursor: "pointer", fontSize: "15px", padding: "2px 6px" }, onClick: () => showConfirm(`'${card.title}' \uCE74\uB4DC\uB97C \uC0AD\uC81C\uD560\uAE4C\uC694?`, () => persist({ subjects, cards: cards.filter((x) => x.id !== card.id) })) }, "X"));
+    hdr.appendChild(el("span", { style: { color: C.muted, cursor: "pointer", fontSize: "13px" }, onClick: () => set({ cardExpanded: isExp ? null : card.id }) }, isExp ? "\u25B2" : "\u25BC"));
+    cardEl.appendChild(hdr);
+    if (isExp) {
+      const body = el("div", { style: { padding: "16px 18px", background: C.bg } });
+      if (card.hint) body.appendChild(el("div", { class: "hint-box" }, `\uD78C\uD2B8: ${card.hint}`));
+      const bt = el("div", { style: { lineHeight: "2.2", fontSize: "14px" } });
+      parts.forEach((p) => {
+        if (p.type === "blank") bt.appendChild(el("span", { style: { display: "inline-block", background: "rgba(224,123,106,.2)", border: "2px solid #e07b6a", borderRadius: "6px", padding: "0 8px", color: "#e07b6a", fontWeight: "800", margin: "0 3px" } }, p.value));
+        else if (p.type === "cho") bt.appendChild(el("span", { style: { display: "inline-block", background: "rgba(58,175,169,.12)", border: "2px dashed #3aafa9", borderRadius: "6px", padding: "0 8px", color: "#3aafa9", fontWeight: "800", margin: "0 3px" } }, p.value + "(" + toChosung(p.value) + ")"));
         else bt.appendChild(textWithBreaks(p.value));
       });
       body.appendChild(bt);
-      if(card.nextReview)body.appendChild(el('div',{style:{marginTop:'10px',fontSize:'11px',color:C.muted,fontWeight:'700'}},`다음 복습: ${new Date(card.nextReview).toLocaleDateString('ko-KR')} · 반복 ${card.reps||0}회`));
+      if (card.nextReview) body.appendChild(el("div", { style: { marginTop: "10px", fontSize: "11px", color: C.muted, fontWeight: "700" } }, `\uB2E4\uC74C \uBCF5\uC2B5: ${new Date(card.nextReview).toLocaleDateString("ko-KR")} \xB7 \uBC18\uBCF5 ${card.reps || 0}\uD68C`));
       cardEl.appendChild(body);
     }
     sec.appendChild(cardEl);
   });
-  wrap.appendChild(sec);return wrap;
+  wrap.appendChild(sec);
+  return wrap;
 }
-
-function renderEditModal(card,subjects,cards){
-  let t=card.title,h=card.hint||'',b=card.body,sid=card.subjectId,cid=card.chapterId;
-  const chapters=getChapters(subjects,sid);
-  const bg=el('div',{class:'modal-bg',onClick:e=>{if(e.target===bg)set({cardEdit:null});}});
-  const box=el('div',{class:'modal-box'});
-  const tb=el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'20px'}});
-  tb.appendChild(el('div',{style:{fontWeight:'700',fontSize:'20px',color:C.accent}},'카드 수정'));
-  tb.appendChild(el('button',{style:{background:'rgba(240,168,152,.2)',border:'none',color:C.accent,fontSize:'18px',cursor:'pointer',borderRadius:'50%',width:'32px',height:'32px'},onClick:()=>set({cardEdit:null})},'X'));
+function renderEditModal(card, subjects, cards) {
+  let t = card.title, h = card.hint || "", b = card.body, sid = card.subjectId, cid = card.chapterId;
+  const chapters = getChapters(subjects, sid);
+  const bg = el("div", { class: "modal-bg", onClick: (e) => {
+    if (e.target === bg) set({ cardEdit: null });
+  } });
+  const box = el("div", { class: "modal-box" });
+  const tb = el("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" } });
+  tb.appendChild(el("div", { style: { fontWeight: "700", fontSize: "20px", color: C.accent } }, "\uCE74\uB4DC \uC218\uC815"));
+  tb.appendChild(el("button", { style: { background: "rgba(240,168,152,.2)", border: "none", color: C.accent, fontSize: "18px", cursor: "pointer", borderRadius: "50%", width: "32px", height: "32px" }, onClick: () => set({ cardEdit: null }) }, "X"));
   box.appendChild(tb);
-  const grid=el('div',{class:'grid2',style:{marginBottom:'14px'}});
-  const subSel=el('select',{class:'inp',onChange:e=>{sid=e.target.value;cid='';}});subjects.forEach(s=>{const o=el('option',{value:s.id},s.name);if(s.id===sid)o.selected=true;subSel.appendChild(o);});
-  const chSel=el('select',{class:'inp',onChange:e=>cid=e.target.value});chapters.forEach(c=>{const o=el('option',{value:c.id},c.name);if(c.id===cid)o.selected=true;chSel.appendChild(o);});
-  const d1=el('div');d1.appendChild(lbl('과목'));d1.appendChild(subSel);const d2=el('div');d2.appendChild(lbl('챕터'));d2.appendChild(chSel);grid.appendChild(d1);grid.appendChild(d2);box.appendChild(grid);
-  box.appendChild(lbl('제목'));const tInp=el('input',{class:'inp',value:t,style:{marginBottom:'10px'},onInput:e=>t=e.target.value});box.appendChild(tInp);
-  box.appendChild(lbl('힌트 (선택)'));const hInp=el('input',{class:'inp',value:h,placeholder:'힌트...',style:{marginBottom:'10px'},onInput:e=>h=e.target.value});box.appendChild(hInp);
-  box.appendChild(lbl('본문'));const ta=el('textarea',{class:'inp',rows:'8',onInput:e=>b=e.target.value});ta.value=b;box.appendChild(ta);
-  const wrapBlank=btn('선택→[[빈칸]]','small',()=>{const s=ta.selectionStart,e=ta.selectionEnd;if(s===e)return;const next=ta.value.slice(0,s)+`[[${ta.value.slice(s,e)}]]`+ta.value.slice(e);ta.value=next;b=next;ta.focus();ta.setSelectionRange(s+2,e+2);});
-  const wrapCho=btn('선택→{초성}','small teal',()=>{const s=ta.selectionStart,e=ta.selectionEnd;if(s===e)return;const next=ta.value.slice(0,s)+`{${ta.value.slice(s,e)}}`+ta.value.slice(e);ta.value=next;b=next;ta.focus();ta.setSelectionRange(s+1,e+1);});
-  const saveBtn=btn('저장','accent',()=>{if(!t.trim()||!b.trim()){alert('제목과 본문을 입력하세요.');return;}const pp=parseBody(b);if(!pp.some(p=>p.type==='blank'||p.type==='cho')){alert('[[빈칸]] 또는 {초성}을 하나 이상 지정하세요.');return;}persist({subjects,cards:cards.map(c=>c.id===card.id?{...c,title:t.trim(),hint:h.trim(),body:b.trim(),subjectId:sid,chapterId:cid}:c)});set({cardEdit:null});});
-  box.appendChild(el('div',{class:'flex',style:{marginTop:'12px',justifyContent:'flex-end'}},[wrapBlank,wrapCho,btn('취소','',()=>set({cardEdit:null})),saveBtn]));
-  bg.appendChild(box);return bg;
+  const grid = el("div", { class: "grid2", style: { marginBottom: "14px" } });
+  const subSel = el("select", { class: "inp", onChange: (e) => {
+    sid = e.target.value;
+    cid = "";
+  } });
+  subjects.forEach((s) => {
+    const o = el("option", { value: s.id }, s.name);
+    if (s.id === sid) o.selected = true;
+    subSel.appendChild(o);
+  });
+  const chSel = el("select", { class: "inp", onChange: (e) => cid = e.target.value });
+  chapters.forEach((c) => {
+    const o = el("option", { value: c.id }, c.name);
+    if (c.id === cid) o.selected = true;
+    chSel.appendChild(o);
+  });
+  const d1 = el("div");
+  d1.appendChild(lbl("\uACFC\uBAA9"));
+  d1.appendChild(subSel);
+  const d2 = el("div");
+  d2.appendChild(lbl("\uCC55\uD130"));
+  d2.appendChild(chSel);
+  grid.appendChild(d1);
+  grid.appendChild(d2);
+  box.appendChild(grid);
+  box.appendChild(lbl("\uC81C\uBAA9"));
+  const tInp = el("input", { class: "inp", value: t, style: { marginBottom: "10px" }, onInput: (e) => t = e.target.value });
+  box.appendChild(tInp);
+  box.appendChild(lbl("\uD78C\uD2B8 (\uC120\uD0DD)"));
+  const hInp = el("input", { class: "inp", value: h, placeholder: "\uD78C\uD2B8...", style: { marginBottom: "10px" }, onInput: (e) => h = e.target.value });
+  box.appendChild(hInp);
+  box.appendChild(lbl("\uBCF8\uBB38"));
+  const ta = el("textarea", { class: "inp", rows: "8", onInput: (e) => b = e.target.value });
+  ta.value = b;
+  box.appendChild(ta);
+  const wrapBlank = btn("\uC120\uD0DD\u2192[[\uBE48\uCE78]]", "small", () => {
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    if (s === e) return;
+    const next = ta.value.slice(0, s) + `[[${ta.value.slice(s, e)}]]` + ta.value.slice(e);
+    ta.value = next;
+    b = next;
+    ta.focus();
+    ta.setSelectionRange(s + 2, e + 2);
+  });
+  const wrapCho = btn("\uC120\uD0DD\u2192{\uCD08\uC131}", "small teal", () => {
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    if (s === e) return;
+    const next = ta.value.slice(0, s) + `{${ta.value.slice(s, e)}}` + ta.value.slice(e);
+    ta.value = next;
+    b = next;
+    ta.focus();
+    ta.setSelectionRange(s + 1, e + 1);
+  });
+  const saveBtn = btn("\uC800\uC7A5", "accent", () => {
+    if (!t.trim() || !b.trim()) {
+      alert("\uC81C\uBAA9\uACFC \uBCF8\uBB38\uC744 \uC785\uB825\uD558\uC138\uC694.");
+      return;
+    }
+    const pp = parseBody(b);
+    if (!pp.some((p) => p.type === "blank" || p.type === "cho")) {
+      alert("[[\uBE48\uCE78]] \uB610\uB294 {\uCD08\uC131}\uC744 \uD558\uB098 \uC774\uC0C1 \uC9C0\uC815\uD558\uC138\uC694.");
+      return;
+    }
+    persist({ subjects, cards: cards.map((c) => c.id === card.id ? { ...c, title: t.trim(), hint: h.trim(), body: b.trim(), subjectId: sid, chapterId: cid } : c) });
+    set({ cardEdit: null });
+  });
+  box.appendChild(el("div", { class: "flex", style: { marginTop: "12px", justifyContent: "flex-end" } }, [wrapBlank, wrapCho, btn("\uCDE8\uC18C", "", () => set({ cardEdit: null })), saveBtn]));
+  bg.appendChild(box);
+  return bg;
+}
+function handleKeyDown(e) {
+  if (e.key !== "Enter") return;
+  const target = e.target;
+  if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+  const v = S.view;
+  if (v === "study" && S.studyPhase === "result") {
+    const card = S.studyQueue[S.studyIdx];
+    if (!card) return;
+    const parts = parseForMode(card.body, S.studyMode);
+    const actives = getActiveParts(parts, S.studyMode);
+    const allOk = actives.every((a, i) => (S.studyInputs[i] || "").trim() === a.value.trim());
+    if (allOk) {
+      const nd = S.studyDone + 1, ni = S.studyIdx + 1;
+      saveStudy({ selSub: S.selSub, selCh: S.selCh, studyIdx: ni, studyDone: nd, studyMode: S.studyMode, studyStartIdx: S.studyStartIdx, studyCount: S.studyCount });
+      if (ni >= S.studyQueue.length) clearStudy();
+      set({ studyDone: nd, studyIdx: ni, studyPhase: "answering", studyInputs: [], studyCb: 0, studyLocked: {} });
+    } else {
+      const nl = {};
+      actives.forEach(function(a, i) {
+        if ((S.studyInputs[i] || "").trim() === a.value.trim()) nl[i] = true;
+      });
+      const ni2 = actives.map(function(a, i) {
+        return nl[i] ? a.value : "";
+      });
+      const fi = ni2.findIndex(function(_, i) {
+        return !nl[i];
+      });
+      set({ studyPhase: "answering", studyLocked: nl, studyInputs: ni2, studyCb: fi >= 0 ? fi : 0 });
+    }
+  } else if (v === "test" && S.testPhase === "result") {
+    const card = S.testDeck[S.testIdx];
+    if (!card) return;
+    const blanks = parseForMode(card.body, "blank").filter((p) => p.type === "blank");
+    const cc = blanks.filter((_, i) => (S.testInputs[i] || "").trim() === blanks[i].value.trim()).length;
+    set({ testResults: [...S.testResults, { card, correct: cc, total: blanks.length }], testIdx: S.testIdx + 1, testPhase: "answering", testInputs: [], testCb: 0 });
+  } else if (v === "review" && S.revPhase === "result") {
+    advanceReviewNext();
+  }
+}
+let activeTargetContainer = null;
+function render() {
+  const app = activeTargetContainer || document.getElementById("app");
+  if (!app) return;
+  app.innerHTML = "";
+  app.appendChild(renderHeader());
+  const { view } = S;
+  if (view === "home") app.appendChild(renderHome());
+  else if (view === "create") app.appendChild(renderCreate());
+  else if (view === "study") {
+    const r = renderStudy();
+    if (r) app.appendChild(r);
+  } else if (view === "test") app.appendChild(renderTest());
+  else if (view === "review") app.appendChild(renderReview());
+  else if (view === "cards") app.appendChild(renderCards());
+}
+function startApp(container) {
+  activeTargetContainer = container;
+  document.removeEventListener("keydown", handleKeyDown);
+  document.addEventListener("keydown", handleKeyDown);
+  try {
+    render();
+  } catch (e) {
+    container.innerHTML = '<div style="padding:20px;color:red;font-size:13px;background:#fff;margin:20px;border-radius:8px"><b>\uC624\uB958 \uBC1C\uC0DD:</b><br>' + e.message + "<br><br>" + e.stack + "</div>";
+  }
+  return () => {
+    document.removeEventListener("keydown", handleKeyDown);
+  };
 }
 
-// ── 엔터 전역 처리 (result 화면에서) ─────────────────────────────────────────
-document.addEventListener('keydown',function(e){
-  if(e.key!=='Enter')return;
-  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
-  const v=S.view;
-  if(v==='study'&&S.studyPhase==='result'){
-    const card=S.studyQueue[S.studyIdx];if(!card)return;
-    const parts=parseForMode(card.body,S.studyMode);const actives=getActiveParts(parts,S.studyMode);
-    const allOk=actives.every((a,i)=>(S.studyInputs[i]||'').trim()===a.value.trim());
-    if(allOk){const nd=S.studyDone+1,ni=S.studyIdx+1;saveStudy({selSub:S.selSub,selCh:S.selCh,studyIdx:ni,studyDone:nd,studyMode:S.studyMode,studyStartIdx:S.studyStartIdx,studyCount:S.studyCount});if(ni>=S.studyQueue.length)clearStudy();set({studyDone:nd,studyIdx:ni,studyPhase:'answering',studyInputs:[],studyCb:0,studyLocked:{}});}
-    else{const nl={};actives.forEach(function(a,i){if((S.studyInputs[i]||'').trim()===a.value.trim())nl[i]=true;});const ni2=actives.map(function(a,i){return nl[i]?a.value:'';});const fi=ni2.findIndex(function(_,i){return !nl[i];});set({studyPhase:'answering',studyLocked:nl,studyInputs:ni2,studyCb:fi>=0?fi:0});}
-  } else if(v==='test'&&S.testPhase==='result'){
-    const card=S.testDeck[S.testIdx];if(!card)return;
-    const blanks=parseForMode(card.body,'blank').filter(p=>p.type==='blank');
-    const cc=blanks.filter((_,i)=>(S.testInputs[i]||'').trim()===blanks[i].value.trim()).length;
-    set({testResults:[...S.testResults,{card,correct:cc,total:blanks.length}],testIdx:S.testIdx+1,testPhase:'answering',testInputs:[],testCb:0});
-  } else if(v==='review'&&S.revPhase==='result'){
-    const card=S.revDeck[S.revIdx];if(!card)return;
-    const blanks=parseForMode(card.body,'blank').filter(p=>p.type==='blank');
-    const cc=blanks.filter((_,i)=>(S.revInputs[i]||'').trim()===blanks[i].value.trim()).length;
-    if(S.revRound===1){
-      const q=cc===blanks.length?2:cc>0?1:0;
-      persist({...S.data,cards:S.data.cards.map(c=>c.id===card.id?{...c,...getNextReview(c,q)}:c)});
-      if(S.revMode==='two'){set({revPhase:'answering',revInputs:[],revCb:0,revRound:2});}
-      else if(cc===blanks.length){set({revResults:[...S.revResults,{card,correct:cc,total:blanks.length}],revIdx:S.revIdx+1,revPhase:'answering',revInputs:[],revCb:0,revRound:1});}
-      else{set({revPhase:'answering',revInputs:[],revCb:0,revRound:2});}
-    } else {
-      if(S.revMode==='two'||cc===blanks.length){set({revResults:[...S.revResults,{card,correct:cc,total:blanks.length}],revIdx:S.revIdx+1,revPhase:'answering',revInputs:[],revCb:0,revRound:1});}
-      else{set({revPhase:'answering',revInputs:[],revCb:0,revRound:S.revRound+1});}
-    }
+
+document.addEventListener('DOMContentLoaded', function() {
+  var app = document.getElementById('app');
+  if (app && typeof startApp === 'function') {
+    startApp(app);
   }
 });
-
-// ── Render ────────────────────────────────────────────────────────────────────
-function render(){
-  const app=document.getElementById('app');app.innerHTML='';app.appendChild(renderHeader());
-  const{view}=S;
-  if(view==='home')app.appendChild(renderHome());
-  else if(view==='create')app.appendChild(renderCreate());
-  else if(view==='study'){const r=renderStudy();if(r)app.appendChild(r);}
-  else if(view==='test')app.appendChild(renderTest());
-  else if(view==='review')app.appendChild(renderReview());
-  else if(view==='cards')app.appendChild(renderCards());
-}
-try{
-  render();
-} catch(e){
-  document.getElementById('app').innerHTML=
-    '<div style="padding:20px;color:red;font-size:13px;background:#fff;margin:20px;border-radius:8px">'+
-    '<b>오류 발생:</b><br>'+e.message+'<br><br>'+e.stack+'</div>';
-}
 </script>
 </body>
 </html>
