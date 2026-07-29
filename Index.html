@@ -144,6 +144,17 @@ const STEP_INTERVALS = {
   5: 30
 };
 const MAX_REPS = 6;
+function getLocalDateString(dateInput) {
+  if (!dateInput) {
+    const d2 = /* @__PURE__ */ new Date();
+    return `${d2.getFullYear()}-${String(d2.getMonth() + 1).padStart(2, "0")}-${String(d2.getDate()).padStart(2, "0")}`;
+  }
+  if (typeof dateInput === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+    return dateInput;
+  }
+  const d = new Date(dateInput);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 function getNextReview(card, quality) {
   let reps = card.reps || 0;
   if (quality === 0) {
@@ -157,9 +168,10 @@ function getNextReview(card, quality) {
     reps = MAX_REPS;
   }
   const interval = isGraduated ? 99999 : STEP_INTERVALS[reps] || 1;
-  const d = /* @__PURE__ */ new Date();
-  d.setDate(d.getDate() + interval);
-  return { interval, reps, nextReview: d.toISOString(), lastReview: (/* @__PURE__ */ new Date()).toISOString(), isGraduated };
+  const now = /* @__PURE__ */ new Date();
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + interval);
+  const nextReview = getLocalDateString(d);
+  return { interval, reps, nextReview, lastReview: (/* @__PURE__ */ new Date()).toISOString(), isGraduated };
 }
 const KEY = "blankquiz_v1";
 const SKEY_PREFIX = "blankquiz_study_";
@@ -289,7 +301,10 @@ function getActiveParts(parts, mode) {
     return p.type === "blank" || p.type === "cho";
   });
 }
-const isDue = (c) => !c.nextReview || new Date(c.nextReview) <= /* @__PURE__ */ new Date();
+const isDue = (c) => {
+  if (!c.nextReview) return true;
+  return getLocalDateString(c.nextReview) <= getLocalDateString();
+};
 function getSN(subjects, card) {
   const s = subjects.find(function(s2) {
     return s2.id === card.subjectId;
@@ -1554,13 +1569,15 @@ function renderReview() {
     const newCards = cards.filter((c) => !c.isGraduated && !c.nextReview && filt(c));
     const todayNew = Math.min(newCards.length, S.revNewCount);
     const futureCards = cards.filter((c) => !c.isGraduated && c.nextReview && !isDue(c) && filt(c));
-    const nextDate = futureCards.length > 0 ? futureCards.reduce((min, c) => c.nextReview < min ? c.nextReview : min, futureCards[0].nextReview) : null;
+    const nextDate = futureCards.length > 0 ? futureCards.reduce((min, c) => getLocalDateString(c.nextReview) < getLocalDateString(min) ? c.nextReview : min, futureCards[0].nextReview) : null;
     if (!dueCards.length && !newCards.length) {
       const wrap2 = el("div", { style: { textAlign: "center", padding: "60px" } });
       wrap2.appendChild(el("div", { style: { fontSize: "26px", fontWeight: "800", color: C.teal, marginBottom: "8px" } }, "\uC624\uB298 \uBCF5\uC2B5 \uC5C6\uC74C"));
       if (nextDate) {
-        const d = new Date(nextDate);
-        wrap2.appendChild(el("div", { style: { color: C.muted, marginBottom: "6px" } }, "\uB2E4\uC74C \uBCF5\uC2B5: " + d.toLocaleDateString("ko-KR")));
+        const dateStr = getLocalDateString(nextDate);
+        const ymd = dateStr.split("-");
+        const formattedDate = `${ymd[0]}. ${parseInt(ymd[1], 10)}. ${parseInt(ymd[2], 10)}.`;
+        wrap2.appendChild(el("div", { style: { color: C.muted, marginBottom: "6px" } }, "\uB2E4\uC74C \uBCF5\uC2B5: " + formattedDate));
         wrap2.appendChild(el("div", { style: { fontSize: "13px", color: C.muted, marginBottom: "28px" } }, futureCards.length + "\uAC1C \uB300\uAE30 \uC911"));
       } else {
         wrap2.appendChild(el("div", { style: { color: C.muted, marginBottom: "28px" } }, "\uBCF5\uC2B5\uD560 \uCE74\uB4DC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4"));
