@@ -30130,6 +30130,39 @@ This typically indicates that your device does not have a healthy Internet conne
     cardExpanded: null
   };
   var unsubscribeQuizListener = null;
+  function mergeQuizData(localData, cloudData) {
+    const lSubs = localData?.subjects || [];
+    const cSubs = cloudData?.subjects || [];
+    const lCards = localData?.cards || [];
+    const cCards = cloudData?.cards || [];
+    const subMap = /* @__PURE__ */ new Map();
+    [...cSubs, ...lSubs].forEach((s) => {
+      if (s && s.id) {
+        if (!subMap.has(s.id)) {
+          subMap.set(s.id, { ...s, chapters: s.chapters || [] });
+        } else {
+          const existing = subMap.get(s.id);
+          const chMap = /* @__PURE__ */ new Map();
+          [...existing.chapters || [], ...s.chapters || []].forEach((ch) => {
+            if (ch && ch.id) chMap.set(ch.id, ch);
+          });
+          existing.chapters = Array.from(chMap.values());
+        }
+      }
+    });
+    const cardMap = /* @__PURE__ */ new Map();
+    [...cCards, ...lCards].forEach((c) => {
+      if (c && c.id) {
+        if (!cardMap.has(c.id)) {
+          cardMap.set(c.id, c);
+        }
+      }
+    });
+    return {
+      subjects: Array.from(subMap.values()),
+      cards: Array.from(cardMap.values())
+    };
+  }
   function initCloudAuth() {
     subscribeAuth(async (user) => {
       S2.currentUser = user;
@@ -30141,26 +30174,18 @@ This typically indicates that your device does not have a healthy Internet conne
         S2.cloudStatus = "syncing";
         render();
         const cloudData = await fetchQuizDataFromCloud(user.uid);
-        if (cloudData && (cloudData.subjects && cloudData.subjects.length > 0 || cloudData.cards && cloudData.cards.length > 0)) {
-          S2.data = {
-            subjects: cloudData.subjects || [],
-            cards: cloudData.cards || []
-          };
-          saveData(S2.data);
-          S2.cloudStatus = "synced";
-        } else {
-          if (S2.data.subjects?.length || S2.data.cards?.length) {
-            await saveQuizDataToCloud(user.uid, S2.data);
-          }
-          S2.cloudStatus = "synced";
-        }
+        const localData = loadData();
+        const merged = mergeQuizData(localData, cloudData || { subjects: [], cards: [] });
+        S2.data = merged;
+        saveData(merged);
+        await saveQuizDataToCloud(user.uid, merged);
+        S2.cloudStatus = "synced";
         unsubscribeQuizListener = subscribeQuizDataFromCloud(user.uid, (data) => {
           if (data) {
-            S2.data = {
-              subjects: data.subjects || [],
-              cards: data.cards || []
-            };
-            saveData(S2.data);
+            const currentLocal = loadData();
+            const newlyMerged = mergeQuizData(currentLocal, data);
+            S2.data = newlyMerged;
+            saveData(newlyMerged);
             S2.cloudStatus = "synced";
             render();
           }
@@ -30390,6 +30415,41 @@ This typically indicates that your device does not have a healthy Internet conne
     bg.appendChild(box);
     document.body.appendChild(bg);
   }
+  function exportDataJSON() {
+    const data = loadData();
+    const jsonStr = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `blankquiz_backup_${getLocalDateString()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  function importDataJSON(file) {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const parsed = JSON.parse(e.target?.result);
+        if (parsed && (Array.isArray(parsed.subjects) || Array.isArray(parsed.cards))) {
+          const localData = loadData();
+          const merged = mergeQuizData(localData, parsed);
+          S2.data = merged;
+          saveData(merged);
+          if (S2.currentUser) {
+            await saveQuizDataToCloud(S2.currentUser.uid, merged);
+          }
+          render();
+          alert("\uB370\uC774\uD130\uB97C \uC131\uACF5\uC801\uC73C\uB85C \uBD88\uB7EC\uC654\uC2B5\uB2C8\uB2E4!");
+        } else {
+          alert("\uC62C\uBC14\uB978 \uBC31\uC5C5 \uD30C\uC77C(JSON) \uD615\uC2DD\uC774 \uC544\uB2D9\uB2C8\uB2E4.");
+        }
+      } catch (err) {
+        alert("\uD30C\uC77C \uC77D\uAE30 \uC2E4\uD328: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+  }
   function renderAuthBox() {
     const { currentUser, cloudStatus } = S2;
     const wrap2 = el("div", { style: { display: "flex", alignItems: "center", gap: "8px" } });
@@ -30404,6 +30464,26 @@ This typically indicates that your device does not have a healthy Internet conne
       }
       const nameStr = currentUser.displayName || currentUser.email || "\uC0AC\uC6A9\uC790";
       wrap2.appendChild(el("span", { style: { fontSize: "12px", fontWeight: "800", color: C2.text, maxWidth: "90px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, nameStr));
+      const syncBtn = el("button", {
+        class: "btn small teal",
+        style: { padding: "2px 8px", fontSize: "11px" },
+        onClick: async (e) => {
+          e.stopPropagation();
+          if (!S2.currentUser) return;
+          try {
+            S2.cloudStatus = "syncing";
+            render();
+            const localData = loadData();
+            await saveQuizDataToCloud(S2.currentUser.uid, localData);
+            S2.cloudStatus = "synced";
+            render();
+            alert("\uB85C\uCEEC \uC2A4\uD1A0\uB9AC\uC9C0\uC758 \uBAA8\uB4E0 \uB370\uC774\uD130(\uACFC\uBAA9 \uBC0F \uCE74\uB4DC)\uAC00 Firebase \uD074\uB77C\uC6B0\uB4DC\uB85C \uC5C5\uB85C\uB4DC\uB418\uC5C8\uC2B5\uB2C8\uB2E4!");
+          } catch (err) {
+            alert("\uC5C5\uB85C\uB4DC \uC2E4\uD328: " + err.message);
+          }
+        }
+      }, "\u2601\uFE0F \uB85C\uCEEC\uB370\uC774\uD130 \uC62C\uB9AC\uAE30");
+      wrap2.appendChild(syncBtn);
       const logoutBtn = el("button", {
         class: "btn small",
         style: { padding: "2px 8px", fontSize: "11px", background: "rgba(61,43,31,0.08)", color: C2.text, border: "none" },
@@ -30478,11 +30558,38 @@ This typically indicates that your device does not have a healthy Internet conne
     nsInp.addEventListener("keydown", (e) => {
       if (e.key === "Enter") doAdd();
     });
-    return el("div", { class: "fade" }, [sectionEl("\uACFC\uBAA9 \uAD00\uB9AC", [
-      el("div", { class: "flex", style: { marginBottom: "20px" } }, [nsInp, btn("\uCD94\uAC00", "accent", doAdd)]),
-      subjects.length === 0 ? el("div", { class: "empty" }, "\uACFC\uBAA9\uC744 \uCD94\uAC00\uD574\uC11C \uD559\uC2B5\uC744 \uC2DC\uC791\uD558\uC138\uC694") : null,
-      ...subjects.map((sub) => renderSubjectCard(sub, cards))
-    ].filter(Boolean))]);
+    const fileInput = el("input", {
+      type: "file",
+      accept: ".json",
+      style: { display: "none" },
+      onChange: (e) => {
+        const target = e.target;
+        if (target.files && target.files[0]) {
+          importDataJSON(target.files[0]);
+          target.value = "";
+        }
+      }
+    });
+    const backupBox = sectionEl("\uB370\uC774\uD130 \uBC31\uC5C5 & \uBCF5\uC6D0 (\uB2E4\uB978 \uAE30\uAE30 / 1\uBC88 \uC0AC\uC774\uD2B8 \uC774\uAD00\uC6A9)", [
+      el(
+        "div",
+        { style: { fontSize: "13px", color: C2.text, lineHeight: "1.6", marginBottom: "12px" } },
+        "1\uBC88 \uC0AC\uC774\uD2B8(\uAE43\uD5C8\uBE0C \uD638\uC2A4\uD305)\uC5D0\uC11C \uBC31\uC5C5\uD55C JSON \uD30C\uC77C\uC744 \uAC00\uC838\uC624\uAC70\uB098, \uD604\uC7AC \uAE30\uAE30\uC758 \uB370\uC774\uD130\uB97C JSON \uD30C\uC77C\uB85C \uB2E4\uC6B4\uB85C\uB4DC\uD569\uB2C8\uB2E4."
+      ),
+      el("div", { class: "flex", style: { gap: "10px", flexWrap: "wrap" } }, [
+        btn("\u{1F4E5} \uB370\uC774\uD130 \uB0B4\uBCF4\uB0B4\uAE30 (JSON \uD30C\uC77C \uC800\uC7A5)", "teal", exportDataJSON),
+        btn("\u{1F4E4} \uB370\uC774\uD130 \uBD88\uB7EC\uC624\uAE30 (JSON \uD30C\uC77C \uC120\uD0DD)", "purple", () => fileInput.click()),
+        fileInput
+      ])
+    ]);
+    return el("div", { class: "fade" }, [
+      sectionEl("\uACFC\uBAA9 \uAD00\uB9AC", [
+        el("div", { class: "flex", style: { marginBottom: "20px" } }, [nsInp, btn("\uCD94\uAC00", "accent", doAdd)]),
+        subjects.length === 0 ? el("div", { class: "empty" }, "\uACFC\uBAA9\uC744 \uCD94\uAC00\uD574\uC11C \uD559\uC2B5\uC744 \uC2DC\uC791\uD558\uC138\uC694") : null,
+        ...subjects.map((sub) => renderSubjectCard(sub, cards))
+      ].filter(Boolean)),
+      backupBox
+    ]);
   }
   function renderSubjectCard(sub, cards) {
     const subCards = cards.filter((c) => c.subjectId === sub.id);
